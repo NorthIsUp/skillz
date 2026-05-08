@@ -1,0 +1,8 @@
+.DS_Store
+node_modules/
+.mise/
+.hk/
+*.log
+.env
+.env.*
+!.env.example

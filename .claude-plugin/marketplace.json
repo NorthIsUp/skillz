@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "askclara-skillz",
+  "description": "Adam's personal Claude Code skills, agents, and commands",
+  "owner": {
+    "name": "Adam",
+    "email": "adam@askclara.com"
+  },
+  "metadata": {
+    "pluginRoot": "./plugins"
+  },
+  "plugins": [
+    {
+      "name": "skillz",
+      "source": "./plugins/skillz",
+      "description": "Personal skills, agents, and commands",
+      "category": "productivity",
+      "tags": ["personal", "skills"]
+    }
+  ]
+}

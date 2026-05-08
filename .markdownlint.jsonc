@@ -1,0 +1,9 @@
+{
+  // https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md
+  "default": true,
+  "MD013": false, // line length — skill descriptions can be long
+  "MD024": { "siblings_only": true }, // duplicate headings ok in different sections
+  "MD033": false, // allow inline HTML (some skills use it)
+  "MD041": false, // allow files that don't start with H1 (SKILL.md is frontmatter-first)
+  "MD046": { "style": "fenced" }
+}

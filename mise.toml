@@ -1,0 +1,46 @@
+[tools]
+hk = "latest"
+pkl = "latest"
+watchexec = "latest"
+lychee = "latest"
+"npm:markdownlint-cli" = "latest"
+"npm:prettier" = "latest"
+"cargo:typos-cli" = "latest"
+actionlint = "latest"
+
+[env]
+# Keep output paths predictable for hk + watchers
+HK_JOBS = "4"
+
+[tasks.lint]
+description = "Run all linters"
+run = "hk check --all"
+
+[tasks.fix]
+description = "Fix all lint issues that can be auto-fixed"
+run = "hk fix --all"
+
+[tasks.pre-commit]
+description = "Pre-commit hook entry point"
+run = "hk run pre-commit"
+
+[tasks.validate-skills]
+description = "Validate SKILL.md frontmatter"
+run = "scripts/validate-skills.sh"
+
+[tasks.auto-push]
+description = "Stage all changes, commit, and push (used by mise watch)"
+run = "scripts/auto-push.sh"
+
+# Background watcher: `mise run watch-and-push` (keep terminal open) or
+# `mise run watch-and-push &` to background. See README for launchd setup.
+[tasks.watch-and-push]
+description = "Watch repo and auto-push changes to git"
+run = """
+mise watch \
+  --glob 'plugins/**' \
+  --glob 'memory/**' \
+  --glob '.claude-plugin/**' \
+  --debounce 5000 \
+  -t auto-push
+"""

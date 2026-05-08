@@ -1,0 +1,49 @@
+amends "package://github.com/jdx/hk/releases/download/v1.39.0/hk@1.39.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.39.0/hk@1.39.0#/Builtins.pkl"
+
+local linters = new Mapping<String, Step> {
+    // Markdown structure + style
+    ["markdown_lint"] = Builtins.markdown_lint
+
+    // Markdown table autoformatting + general formatting
+    ["prettier"] = (Builtins.prettier) {
+        glob = List("**/*.md", "**/*.json", "**/*.yml", "**/*.yaml")
+    }
+
+    // Validate every link in every markdown file (incl. anchors + relative paths)
+    ["lychee"] {
+        glob = List("**/*.md")
+        check = "lychee --no-progress --offline --include-fragments {{ files }}"
+    }
+
+    // Spell + typo check (catches typos in skill names/descriptions — high value)
+    ["typos"] = Builtins.typos
+
+    // Safety: block secrets + huge files from being committed
+    ["detect_private_key"] = Builtins.detect_private_key
+    ["check_added_large_files"] = Builtins.check_added_large_files
+
+    // GitHub Actions linting (since we ship a workflow)
+    ["actionlint"] = Builtins.actionlint
+
+    // Validate SKILL.md / plugin.json / marketplace.json frontmatter shape
+    ["validate-skills"] {
+        glob = List("plugins/**/SKILL.md", "**/.claude-plugin/*.json")
+        check = "scripts/validate-skills.sh"
+    }
+}
+
+hooks {
+    ["pre-commit"] {
+        fix = true
+        stash = "git"
+        steps = linters
+    }
+    ["fix"] {
+        fix = true
+        steps = linters
+    }
+    ["check"] {
+        steps = linters
+    }
+}

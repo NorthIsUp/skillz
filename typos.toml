@@ -1,0 +1,8 @@
+[default]
+extend-ignore-re = [
+  # Allow common skill jargon
+  "(?Rm)^.*disable-model-invocation.*$"
+]
+
+[files]
+extend-exclude = ["memory/", "*.lock"]
