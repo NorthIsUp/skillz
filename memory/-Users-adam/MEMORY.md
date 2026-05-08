@@ -1,0 +1,8 @@
+- [User Profile](user_profile.md) — macOS Tahoe/Apple Silicon, mise-centric tooling, iTerm2, Safari, VS Code Insiders
+- [Zsh Setup](user_zsh_setup.md) — Custom zsh config: ZDOTDIR=~/.config/zsh, sources ~/my/lib/zsh, zinit, starship prompt
+- [Project Clara](project_clara.md) — EHR/medical project at ~/src/Clara_V1, Medplum/FHIR, Python CDS hooks
+- [CC Statusline Quirks](project_cc_statusline.md) — harness strips trailing whitespace; right-align needs a leading sentinel char
+- [LG 32U990A Setup](hardware_lg_monitor_usb_hub.md) — USB hub needs LG Switch.app + "Allow accessories: Always" for cameras to stream through the dock
+- [Verify Commands First](feedback_verify_commands.md) — Run 1-3 checks (pgrep/which/launchctl/ls) to confirm names/paths/flags exist before suggesting any command
+- [Verify Before Asking for Input](feedback_verify_before_asking.md) — Before any "you do this" handoff (auth/sudo/install), check the prerequisite isn't already satisfied (creds files, sudo -n, which, etc.)
+- [Unfreeze Before Killing](feedback_hung_apps.md) — When app is hung, try sample/spindump/kill -CONT before kill -9; preserve session state

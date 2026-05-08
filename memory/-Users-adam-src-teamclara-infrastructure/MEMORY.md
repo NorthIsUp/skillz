@@ -1,0 +1,26 @@
+# Memory Index
+
+- [Adam Hitchcock](user_adam.md) — infra engineer bootstrapping teamclara, uses mise/fnox/pulumi toolchain
+- [Infrastructure repo bootstrap](project_infra_bootstrap.md) — new repo with mise + fnox + hk + pulumi ESC, no commits yet as of 2026-04-05
+- [Linear issue tracker](reference_linear.md) — teamclara uses Linear, ticket prefix CLA- (e.g., CLA-820)
+- [Mise task preferences](feedback_mise_tasks.md) — zsh scripts in mise_tasks/, inline refs in mise.toml
+- [Use uv for Python deps](feedback_uv_sync.md) — uv sync, not pip install
+- [Database choice](project_database_choice.md) — Neon is active, Cloud SQL provisioned as warm standby in platform stack
+- [Platform follow-ups](project_platform_followups.md) — Tailscale peer-relay TODO, ARC GitHub auth, Argo repo creds, HTTPS gateway
+- [Prefer until-loops over sleep](feedback_until_over_sleep.md) — when polling, use `until <check>; do sleep N; done` not fixed `sleep N && check`
+- [Mise tasks: no double definition](feedback_mise_task_definition.md) — files under mise_tasks/ are auto-loaded; don't also add [tasks.X] blocks in mise.toml
+- [Comment all hacks](feedback_comment_hacks.md) — workarounds / non-obvious choices get an inline comment with what's broken upstream, the symptom, and why the fix works
+- [Check PR conflicts proactively](feedback_check_conflicts_proactively.md) — after pushing, check mergeStateStatus; rebase stacked PRs before they go DIRTY
+- [Stop asking — just do it](feedback_stop_asking.md) — decide and act on routine forks; reserve asking for genuinely irreversible/destructive actions
+- [Poll GitHub, don't trust notifications](feedback_poll_github_status.md) — background notifications miss state; actively poll PR mergeStateStatus + run conclusion until terminal
+- [Subagents: no auto-merge](feedback_subagent_no_auto_merge.md) — instruct subagents to open PRs but not enable auto-merge themselves; the controller decides
+- [Until-loops need a timeout](feedback_until_loop_timeout.md) — always pass a reasonable Bash `timeout` when polling with `until ... sleep ...; done`
+- [Summary table when stopping work](feedback_summary_table_on_stop.md) — end long autonomous sessions with a compact table of what's done, in-flight, and why stopping
+- [Prefer IaC when presenting options](feedback_iac_preferred.md) — rank Pulumi/code paths above manual gcloud/kubectl in option menus; don't block manual one-shots once chosen
+- [Poll every 2 minutes when waiting](feedback_poll_every_2min.md) — use ScheduleWakeup(delaySeconds=120) for in-flight work; don't sit silent
+- [c4a/c4/n4 need hyperdisk-balanced](feedback_c4a_hyperdisk.md) — third-gen GKE pools must pin disk_type=hyperdisk-balanced; pd-balanced silently breaks scale-up
+- [Follow up until actually successful](feedback_followup_until_success.md) — don't declare success on first positive signal; verify end-to-end outcome and keep digging if the curve flattens before target
+- [ESC per-app env pattern](project_esc_per_app_pattern.md) — app secrets live in `platform/app-<name>` ESC env, imported into `platform/clara`; ESO reads via `environmentVariables.*` paths
+- [ApplicationSet goTemplate file-load trap](feedback_argocd_appset_yaml.md) — `goTemplate: true` does NOT preprocess the file; conditionals at YAML structural level break root-app's manifest loader. Keep Go-template directives inside string values; pull outliers into standalone Application files.
+- [Always prefer latest stable versions](feedback_latest_stable_versions.md) — for charts, image tags, SDKs: pick the highest stable release; pin older only with a concrete reason in a comment.
+- [Verify before claiming done](feedback_verify_before_done.md) — a merged PR isn't proof of success; observe the system end-to-end (curl, kubectl, real flow) before reporting completion.

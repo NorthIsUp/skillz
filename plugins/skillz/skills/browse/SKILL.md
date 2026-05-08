@@ -1,0 +1,1 @@
+/Users/adam/src/dotfiles/home/.claude/skills/gstack/browse/SKILL.md

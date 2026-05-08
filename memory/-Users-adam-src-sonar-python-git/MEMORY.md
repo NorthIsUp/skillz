@@ -1,0 +1,1 @@
+- [Semgrep Python rule-authoring gotchas](semgrep_python_authoring.md) — Parser normalisations, pattern-not-inside scope traps, metavariable quirks, and categories that are unsupported in Semgrep

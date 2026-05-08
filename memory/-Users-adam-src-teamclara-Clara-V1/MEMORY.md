@@ -1,0 +1,27 @@
+- [Pulumi ESC secrets](reference_pulumi_esc.md) — env hierarchy, early binding limitation, per-dev override workaround
+- [Celery SIGKILL bug (resolved)](project_celery_sigkill.md) — fixed in PR #620, moved monitoring from Better Stack to Datadog
+- [Fly registry cleanup](project_fly_registry_cleanup.md) — plan to add periodic cleanup of old Fly.io registry images
+- [Always subagent-driven](feedback_subagent_driven.md) — skip execution mode prompt, always use subagent-driven development
+- [Use ~/tmp for temp files](feedback_use_home_tmp.md) — avoid /tmp to prevent permission prompts on file recreation
+- [Don't output raw URLs](feedback_no_raw_urls.md) — use `open` command instead, terminal wrapping breaks URLs
+- [Use pipe read](feedback_pipe_read.md) — prefer `cmd | read VAR` over `VAR=$(cmd)` in shell commands
+- [PHI scan architecture](project_phi_scan_ci.md) — pre-commit hook with --fix, stale lock detection, trap cleanup
+- [CLA-820 GKE Actions Runners](project_cla820_gke_arc.md) — GKE Standard + ARC via Pulumi for self-hosted CI runners
+- [Always show local command output](feedback_show_local_command_output.md) — respond to ! commands and show their output, never ignore them
+- [Master branch protection](project_branch_protection.md) — two-layer protection: hk pre-commit hook + GitHub API rules requiring PR with 1 approval
+- [Don't remove user logic](feedback_dont_remove_user_logic.md) — when cleaning up scripts, only remove what was discussed, keep all other functional lines
+- [Pydantic not Any](feedback_pydantic_not_any.md) — validate external data with pydantic models, never force-cast as Any; also in toolchain skill
+- [Fully typed - no exceptions](feedback_fully_typed.md) — all code fully typed; Literal for constrained strings; dict needs type args; TypedDict only for existing dicts
+- [Rich source rendering rules](feedback_rich_source_rendering.md) — highlight=False, escape(), read file directly, col=col_offset-indent, pointer at col not midpoint
+- [lint:bandit mise task](project_lint_bandit.md) — phi-scan-style TUI diagnostics, 3 output modes, hk integration, CI simplified to `mise run lint:bandit`
+- [fnox-env plugin PATH fix](project_fnox_env_plugin.md) — mise 2026.4.6 broke tools=true for env hooks, workaround in plugin
+- [Mise env hooks for Claude Code](project_mise_env_hooks.md) — PR #665, SessionStart + FileChanged hooks replace PreToolUse
+- [Subagent permissions](feedback_subagent_bypass.md) — always use mode="auto" when spawning agents
+- [Mise tasks must be executable](feedback_mise_tasks_executable.md) — chmod +x after writing/editing mise task files
+- [Plain ASCII dashes](feedback_plain_ascii_dashes.md) - use `-`, never unicode en/em-dash unless literally about that char
+- [Reproduce CI locally via mise-only PATH](feedback_reproduce_ci_locally.md) - global npm/pipx tools mask CI failures; use mise-only PATH when debugging
+- [Clara is async-first](feedback_clara_async_first.md) — ASGI/uvicorn; nearly 100% of backend should be `async def`. If it touches I/O, it's async. Avoid `async_to_sync`.
+- [Minimal diff when adding types](feedback_minimal_diff_typing.md) — only change what the lint requires; don't expand ternaries into blocks
+- [Narrow with assert/match, not getattr](feedback_narrow_not_getattr.md) — getattr/cast/type:ignore silence pyright without proving anything; use assert/isinstance/match
+- [No `# type: ignore` comments](feedback_no_type_ignore.md) — banned outright; explain the error and fix at the source (enum value, aupdate, proper annotation, cast at boundary, or fix the stub)
+- [Tests must not assume a clean DB](feedback_tests_no_clean_db.md) — scope assertions to test-owned data; use get_or_create for shared rows; never `Model.objects.count()==N` or `assert_called_once()` on whole-table scans

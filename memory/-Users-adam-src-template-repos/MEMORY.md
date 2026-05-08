@@ -1,0 +1,1 @@
+- [Project templates](templates.md) — NorthIsUp/template-python + template-rust for scaffolding new repos with release CI

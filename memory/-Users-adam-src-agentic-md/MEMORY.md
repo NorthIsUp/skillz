@@ -1,0 +1,1 @@
+- [Subagent permissions](feedback_subagent_permissions.md) — match session's permission mode when spawning subagents
