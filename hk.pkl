@@ -2,6 +2,18 @@ amends "package://github.com/jdx/hk/releases/download/v1.39.0/hk@1.39.0#/Config.
 import "package://github.com/jdx/hk/releases/download/v1.39.0/hk@1.39.0#/Builtins.pkl"
 
 local linters = new Mapping<String, Step> {
+    // Symlinked-in skills have a SKILL.md that points into ~/src/dotfiles —
+    // machine-specific, must never be committed. check ERRORS if one is
+    // staged (so pre-commit aborts the commit like any lint failure); the
+    // fixer (`hk fix`) unstages them. No glob: hk omits symlinks from its
+    // file lists, so the script inspects the git index directly. stage =
+    // List() so `hk fix` never re-adds what the fix removed.
+    ["unstage-symlink-skills"] {
+        check = "scripts/unstage-symlink-skills.sh --check"
+        fix = "scripts/unstage-symlink-skills.sh"
+        stage = List()
+    }
+
     // Markdown structure + style
     ["markdown_lint"] = Builtins.markdown_lint
 
@@ -34,8 +46,9 @@ local linters = new Mapping<String, Step> {
 }
 
 hooks {
+    // Check-only: pre-commit reports errors and aborts the commit; it does
+    // not autofix. Run `hk fix` to apply fixes.
     ["pre-commit"] {
-        fix = true
         stash = "git"
         steps = linters
     }

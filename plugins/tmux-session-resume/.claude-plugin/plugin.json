@@ -1,0 +1,13 @@
+{
+  "name": "tmux-session-resume",
+  "description": "Save & auto-restore tmux sessions with Claude Code --resume per pane. Restores windows, panes, cwd, and re-launches each pane's previous claude session by id.",
+  "version": "0.1.0",
+  "author": {
+    "name": "NorthIsUp",
+    "url": "https://github.com/NorthIsUp"
+  },
+  "homepage": "https://github.com/NorthIsUp/skillz/tree/main/plugins/tmux-session-resume",
+  "repository": "https://github.com/NorthIsUp/skillz",
+  "license": "MIT",
+  "keywords": ["tmux", "session", "resurrect", "continuum", "resume", "claude-code"]
+}

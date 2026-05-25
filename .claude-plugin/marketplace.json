@@ -1,10 +1,10 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
-  "name": "askclara-skillz",
-  "description": "Adam's personal Claude Code skills, agents, and commands",
+  "name": "northisup-skillz",
+  "description": "NorthIsUp's personal Claude Code skills, agents, and commands",
   "owner": {
-    "name": "Adam",
-    "email": "adam@askclara.com"
+    "name": "NorthIsUp",
+    "url": "https://github.com/NorthIsUp"
   },
   "metadata": {
     "pluginRoot": "./plugins"
@@ -16,6 +16,13 @@
       "description": "Personal skills, agents, and commands",
       "category": "productivity",
       "tags": ["personal", "skills"]
+    },
+    {
+      "name": "tmux-session-resume",
+      "source": "./plugins/tmux-session-resume",
+      "description": "Save & auto-restore tmux sessions with Claude Code --resume per pane",
+      "category": "productivity",
+      "tags": ["tmux", "resurrect", "continuum", "claude-code", "resume"]
     }
   ]
 }
