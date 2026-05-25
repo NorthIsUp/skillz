@@ -1,0 +1,142 @@
+---
+name: ruthless-python
+description: |
+  Modern Python best practices for any Python code in this workspace —
+  writing, editing, reviewing, or designing. Use this whenever touching
+  a `.py` file: it sets the bar for typing (100% typed, no bare `Any`),
+  data modeling (pydantic first), control flow (`match` over
+  `isinstance`), and concurrency (async-native, `TaskGroup`). Also fires
+  for related phrases like "make this more Pythonic", "type this
+  properly", "clean up this Python", "add types", "async this", or
+  reviewing a pull request that changes Python code.
+---
+
+# Ruthless Python
+
+The standing bar for Python in this workspace. Declarative: each rule
+states _what_ good code looks like and _why_, so the principle applies
+to cases the rule doesn't literally cover.
+
+## The bar
+
+- **Rule 1 — 100% typed.** Every signature, every attribute, every return. No untyped `def`, no implicit `Any` from a missing annotation. Pyright/mypy clean.
+- **Rule 2 — `Any` and `object` are last-resort.** If you use one, add a one-line comment above the annotation explaining _why_ a precise type isn't possible (untyped third-party lib, true dynamic dispatch, serialization boundary). No `Any` without that justification.
+- **Rule 3 — Never return `list[Any]` or `dict[str, Any]`.** That's a missing type, not a type. Define a `TypedDict`, dataclass, or pydantic model and return that. See `references/typing.md`.
+- **Rule 4 — Pydantic first for data with shape or boundaries.** Anything crossing an I/O boundary (HTTP, queue, file, LLM tool call, config) is a `pydantic.BaseModel`. Internal value objects can be `@dataclass` (frozen, slots) or `TypedDict`. Plain dicts are not a data model. See `references/pydantic.md`.
+- **Rule 5 — Methods live on the model, not in utility modules.** If a function's first argument is a `User`, it's a method on `User`. Don't write `def _normalize_email(user: User) -> str` in a `helpers.py`; write `User.normalize_email(self) -> str`. Behavior belongs with the data it operates on. Reasons it matters:
+  - Discoverability: `user.<TAB>` shows what a `User` can do; grepping `helpers.py` does not.
+  - Refactor safety: renaming the field updates call sites via the type checker; loose utility functions silently rot.
+  - Polymorphism: subclasses / discriminated unions can override; free functions can't.
+
+  Exceptions (rare, deliberate):
+  - The function legitimately operates on two unrelated types at the same level (`def merge(a: A, b: B) -> C`).
+  - It's a pure constructor / parser that returns the model from raw input — that's a `@classmethod` (e.g., `User.from_row`), not a free function.
+  - It's a cross-cutting concern with no natural owner (logging, tracing). Even then, prefer a method on the cross-cutting object (`tracer.span(...)`) over `do_traced(thing)`.
+
+  Example:
+
+  ```python
+  # Bad
+  def calculate_total(order: Order) -> Money: ...
+  def is_expired(token: Token) -> bool: ...
+  def to_row(user: User) -> UserRow: ...
+
+  # Good
+  class Order(BaseModel):
+      def total(self) -> Money: ...
+
+  class Token(BaseModel):
+      def is_expired(self) -> bool: ...
+
+  class User(BaseModel):
+      def to_row(self) -> UserRow: ...
+  ```
+
+- **Rule 6 —** `match` **over** `isinstance` **chains.** Pattern matching declares the _shape_ of the data; an `isinstance` ladder hides it in imperative branches. Convert any three-arm `isinstance` chain. Use `assert_never(x)` in the catch-all so the type checker flags missing variants.
+
+  ```python
+  match event:
+      case Click(x=x, y=y):     ...
+      case KeyPress(key=key):   ...
+      case Scroll(delta=delta): ...
+      case _:                   assert_never(event)
+
+  match event.mode:
+      case "open": ...
+      case "closed":...
+      case _: ...
+
+  ```
+
+- **Rule 7 — Async-native. `TaskGroup` is the default concurrency primitive.** Don't reach for `asyncio.gather`, raw `create_task`, threads, or `concurrent.futures` unless you have a specific reason noted in a comment. Prefer `anyio` over `asyncio` for new code. See `references/async.md`.
+- **Rule 8 — Succinct, low-magic.** Prefer comprehensions, model declarations, and stdlib iter tools over hand-rolled loops. Avoid metaclasses, dynamic class creation, monkeypatching, clever decorators. Some magic (descriptors, `__init_subclass__`, pydantic validators) earns its keep — pick it deliberately, never by default.
+- **Rule 9 — Tests are pytest; async tests use anyio.** No bare `asyncio` in tests, no `unittest`. Use `@pytest.mark.anyio` (or set `anyio_mode = "auto"`). Don't mock pydantic models — construct them; that's what they're for. Don't mock async iterators — use `asyncstdlib`. See "Testing" below.
+
+## Library defaults
+
+Reach for these first; don't introduce alternatives without a reason:
+
+- `pydantic` — data models, settings, validation.
+- `pydantic-ai` — LLM agents, tool calls, structured outputs.
+- `fastapi` — HTTP API. Async-native, pydantic-native. Routes take and return pydantic models; the OpenAPI schema in the docs _is_ the schema in the code. Pair with the Tortoise-derived schemas below — never hand-write a parallel `BaseModel` for an endpoint that returns a DB row. See `references/fastapi.md`.
+- `tortoise-orm` — async ORM. Use `tortoise.contrib.pydantic.pydantic_model_creator` to derive pydantic schemas straight from the ORM models, so the same source of truth covers both the DB row and the API/tool schema. See `references/pydantic.md`.
+- `anyio` — structured concurrency, cancellation, timeouts, streams. Works under asyncio _and_ trio. Prefer over `asyncio` directly.
+- `asyncstdlib` — async equivalents of `itertools` / `functools` / `builtins` (`a.map`, `a.filter`, `a.zip`, `a.cached_property`).
+- `pytest` (+ anyio's pytest plugin) — tests.
+
+Before adding a new dependency, check whether `anyio` or `asyncstdlib` already covers it.
+
+## Tooling
+
+- **Ruff is the formatter and the linter.** `ruff format` for formatting, `ruff check` for linting — one tool, one config. Not `black`, not `flake8`, not `isort`, not `pylint`. No formatting or style opinions in this skill or in code review; ruff decides. Configure rules in `[tool.ruff.lint]` in `pyproject.toml`; don't ship `# noqa` lines without an inline reason.
+- **Pyright is the type-checker.** Not mypy, not pytype. Pyright enforces Rules 1, 2, 3, and the exhaustiveness of Rule 6. Configure `typeCheckingMode = "strict"` in `[tool.pyright]` (or `pyrightconfig.json`) and treat warnings as errors. The checks that matter most: `reportUnusedCoroutine`, `reportMissingTypeStubs`, `reportUnknownArgumentType`, `reportUnknownMemberType`, `reportImplicitOverride`.
+- **Pre-push pipeline: `ruff format && ruff check --fix && pyright`.** Ruff does formatting + style; pyright does correctness. If `hk` / `pre-commit` is wired up, that's the canonical entry point.
+
+## When you're editing Python
+
+- **Read the surrounding module.** Match its existing patterns where they agree with this skill; flag (don't silently rewrite) places where the existing code violates it but isn't in scope.
+- **Type as you go.** Don't leave a function half-typed for "later".
+- **Model the data once.** If a dict is passed between three functions, it should be a pydantic model or `TypedDict` before the third — not a fourth.
+- **Co-locate behavior with data.** When you find yourself writing the second utility function that takes the same model as its first argument, stop and make both into methods on the model.
+- **Replace `isinstance` chains with `match**` at three arms or any tagged union.
+- **Audit concurrency.** Loose `create_task` calls or bare `gather(..., return_exceptions=True)` are usually bugs in waiting — convert to a `TaskGroup`.
+
+## Testing (the short version)
+
+- Layout: tests live next to source as `test_*.py`, or in a parallel `tests/` tree mirroring the package.
+- One behavior per test. The name says what it asserts: `test_user_create_rejects_empty_email`.
+- Async: `@pytest.mark.anyio` on async tests; parametrize the backend if the code is supposed to work under both asyncio and trio.
+- Fixtures: prefer small fixtures (`def make_user(**overrides)`) over giant shared fixtures. but still a `@pytest.fixture`
+- Don't mock what you own. Construct real pydantic models. Mock only at I/O boundaries (HTTP, DB, time, randomness).
+- Property-based tests (`hypothesis`) earn their keep for parsers, validators, serializers.
+
+See `references/pydantic.md` for model factory patterns.
+
+## Anti-patterns (reject on sight)
+
+| Smell                                         | Replace with                                     |
+| --------------------------------------------- | ------------------------------------------------ |
+| `def f(x):` (no annotations)                  | Full signature with types                        |
+| `-> dict[str, Any]` / `-> list[dict]`         | `TypedDict` or pydantic model                    |
+| `def helper(model: M, ...)` in a utils module | A method on `M`                                  |
+| Three-arm `if isinstance(x, A): ... elif ...` | `match x: case A(): ...`                         |
+| `asyncio.gather(*tasks)` for fan-out          | `async with anyio.create_task_group() as tg:`    |
+| `asyncio.create_task(f())` then forgetting it | `tg.start_soon(f)` inside a task group           |
+| `threading.Thread` for I/O concurrency        | async + task group                               |
+| `time.sleep` in async code                    | `await anyio.sleep(...)`                         |
+| `for x in await collect_all(): ...`           | `async for x in stream: ...` (via `asyncstdlib`) |
+| Plain dict as a data carrier across modules   | pydantic model (or `TypedDict` if internal-only) |
+| `**kwargs: Any` for config                    | A `BaseModel` for config; pass the model         |
+| `@property` doing real I/O                    | Make it an explicit `async def` method           |
+| `cast(T, x)` to silence pyright               | Fix the type at the source, or `TypeGuard`       |
+
+## Reviewing Python (PRs, diffs)
+
+Walk the diff against the bar. For each violation, quote the line and propose the replacement. Lead with the rule number ("Rule 3: `dict[str, Any]` return — model as `UserRecord` (TypedDict)") so the author can map feedback back to the standard.
+
+## Reference files (load on demand)
+
+- `references/typing.md` — eliminating `Any`, when each container type fits, `Protocol` vs `ABC`, generics, `Self`, `TypeGuard`, `assert_never` for exhaustiveness.
+- `references/async.md` — `TaskGroup` patterns, cancellation, timeouts, streams, `asyncstdlib` recipes, `anyio` over `asyncio`.
+- `references/pydantic.md` — model design, validators, settings, discriminated unions, model factories for tests, `pydantic-ai` agent shape, Tortoise ORM + `pydantic_model_creator`.
+- `references/fastapi.md` — router and endpoint shape, dependency injection (`Depends`), lifespan + Tortoise wiring, error responses, testing with `httpx.AsyncClient`.
