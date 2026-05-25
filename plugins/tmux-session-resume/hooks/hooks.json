@@ -5,6 +5,10 @@
         "hooks": [
           {
             "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/autoinstall.sh"
+          },
+          {
+            "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/scripts/tmux-claude-track.sh",
             "statusMessage": "tmux-session-resume: tracking claude session for this pane"
           }

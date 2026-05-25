@@ -29,5 +29,5 @@ while IFS=$'\t' read -r sname widx pidx _cwd sid; do
         claude|*claude*) continue ;;
     esac
 
-    tmux send-keys -t "$target" "$claude_bin --resume $sid" Enter
+    tmux send-keys -t "$target" "stty sane; exec $claude_bin --resume $sid" Enter
 done < "$tsv"
