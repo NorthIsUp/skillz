@@ -3,6 +3,12 @@
 # version is not yet tagged. Run from CI on push to main.
 set -euo pipefail
 
+# CI runners have no git identity; annotated tags need one. Set a bot
+# identity only when unset so local runs keep the user's own config.
+git config user.name >/dev/null 2>&1 || git config user.name "github-actions[bot]"
+git config user.email >/dev/null 2>&1 \
+  || git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
 marketplace=".claude-plugin/marketplace.json"
 released_any=0
 
