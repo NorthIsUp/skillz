@@ -4,6 +4,7 @@ description: Always use plain `-` instead of en-dash `–` / em-dash `—` in pr
 type: feedback
 originSessionId: 5d5a77c2-4ab2-455d-8eec-55de56d2eec6
 ---
+
 Use a plain ASCII hyphen `-` in all written output (prose, comments, changelogs, commit messages, PR descriptions, etc). Never use en-dash or em-dash.
 
 **Why:** The user finds unicode dashes visually jarring in monospace terminal output, and they complicate grepping/copying. Plain hyphens render consistently everywhere.

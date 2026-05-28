@@ -4,6 +4,7 @@ description: Code/feature work isn't complete until tests have been written and 
 type: feedback
 originSessionId: ffe2c465-fe66-43a5-9f74-4c948334dc1c
 ---
+
 Don't claim work is done until you have tested it. For non-trivial code changes that means writing tests (unit or integration) AND running them with green output. A successful build is not enough — exercising the actual behavior is required.
 
 **Why:** Adam has been burned multiple times by agents declaring tasks complete based on "it compiles" or smoke tests that didn't cover the failure paths. Tests are the only durable evidence that the code does what it claims.

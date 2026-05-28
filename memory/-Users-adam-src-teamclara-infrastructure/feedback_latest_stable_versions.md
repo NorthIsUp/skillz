@@ -4,6 +4,7 @@ description: When picking a chart, image tag, or library version, default to the
 type: feedback
 originSessionId: ebf78e0f-dc9a-410e-b631-4422349723c2
 ---
+
 Always prefer the latest stable release when picking a chart version, container image tag, library version, or similar.
 
 **Why:** Old versions miss CVE patches, lack newer API surfaces (e.g. ToolHive v0.12 forced inline OIDC; v0.24 brought v1beta1 with cleaner refs we actually wanted), and locking in a stale baseline creates upgrade debt that compounds.

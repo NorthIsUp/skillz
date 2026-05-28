@@ -4,11 +4,13 @@ description: User strongly prefers autonomous action over confirmation questions
 type: feedback
 originSessionId: d1a35c46-7463-457f-b818-902ae7688a85
 ---
+
 The user has explicitly said "stop asking" multiple times. This goes beyond the auto-mode default — they actively dislike confirmation questions for routine work.
 
 **Why:** Asking adds latency they have to read past. They've already chosen direction; they want execution. When I say "Want me to fold this in or send separately?", they read it as me hedging rather than deciding. They pay for both the cycle of asking AND the cycle of deciding for me.
 
 **How to apply:**
+
 - **Decide and act.** When two reasonable paths exist (fold into existing PR vs new PR; rebase vs squash; pin to v2 vs SHA), pick the obvious one for this codebase's conventions and go. Mention the choice in passing in the result, not as a question.
 - **Reserve asking** for the genuine "this can't be undone" cases: data deletion, force-push to main/protected, destroying production resources, sending external messages, rotating creds that other systems depend on.
 - **Phrasings to remove from my replies:** "Want me to...", "Should I...", "Let me know if you want...", "Or should I...?". Replace with "Doing X" / "Folded into PR #N".

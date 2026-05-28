@@ -7,12 +7,14 @@ type: project
 PR #665 (branch adam/cla-846-ensure-mise-env-is-up-to-date-for-every-command) restructures how mise environment is activated in Claude Code sessions.
 
 **Architecture:**
+
 - `SessionStart` hook: runs `update-mise-env.sh` once at session start (was `scripts/mise-install.sh` for install, removed to simplify)
 - `FileChanged` hook: watches `mise.toml|mise.dev.toml`, re-runs `update-mise-env.sh` on changes
 - Previous approach: `PreToolUse` hook on every Bash call (too frequent, slow)
 - `common.sh` has `export_mise_env()` that collapses multi-line values (e.g. RSA keys) for Claude Code's line-by-line env parsing
 
 **Key files:**
+
 - `.claude/settings.json` - hook definitions
 - `.claude/hooks/update-mise-env.sh` - thin wrapper calling common.sh
 - `.claude/hooks/common.sh` - shared `export_mise_env()` function

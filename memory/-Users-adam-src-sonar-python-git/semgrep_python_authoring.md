@@ -4,6 +4,7 @@ description: Hard-won pitfalls and workarounds learned while porting 75+ SonarQu
 type: reference
 originSessionId: 75817e54-a284-4c82-9880-61f5c0f49fb4
 ---
+
 These observations come from porting Sonar Python rules into `.semgrep/rules/*.yml` against the sonar-python fixtures. Future authoring sessions in this repo (or similar Semgrep-porting work) should check these before wrestling with the pattern language.
 
 ## Semgrep's Python parser normalises several constructs
@@ -18,7 +19,7 @@ When a pattern appears to over- or under-match unexpectedly, suspect normalisati
 
 ## `pattern-not-inside` walks the full ancestor chain, not the nearest scope
 
-If a rule cares about "nearest enclosing def/class", a single `pattern-not-inside: def $F(...): ...` over-excludes (it matches when a def is *anywhere* up the tree, even with a class between). Express "nearest is X, not Y" as:
+If a rule cares about "nearest enclosing def/class", a single `pattern-not-inside: def $F(...): ...` over-excludes (it matches when a def is _anywhere_ up the tree, even with a class between). Express "nearest is X, not Y" as:
 
 1. `pattern-inside:` the desired ancestor (e.g. `class $C: ...`)
 2. `pattern-not-inside:` the full deeper nesting that would invalidate the scope (e.g. `class $C: ... def $F(...): ... TARGET ...`)
@@ -39,7 +40,7 @@ Nested negations inside `metavariable-pattern` often fail to exclude what they s
 
 ## `.$METAVAR` crashes the Python parser
 
-Writing `$F(...).$A == $F(...).$A` fails at rule-parse time with `Parsing_error.Lexical_error (unrecognized symbol: $ ...)`. Rewrite attribute-of-metavariable cases by requiring the metavariable *not* to be a call via `metavariable-pattern` / regex.
+Writing `$F(...).$A == $F(...).$A` fails at rule-parse time with `Parsing_error.Lexical_error (unrecognized symbol: $ ...)`. Rewrite attribute-of-metavariable cases by requiring the metavariable _not_ to be a call via `metavariable-pattern` / regex.
 
 ## Constant propagation is on by default
 

@@ -9,6 +9,7 @@ All code must be fully typed per CLAUDE.md: every function signature, return typ
 **Why:** User explicitly corrected two lapses in one session - untyped `dict` return and `report: Any = json.load(f)`. CLAUDE.md says "Fully typed, always — no exceptions".
 
 **How to apply:**
+
 - Constants need types: `CI: bool = ...`, not `CI = ...`
 - Use `Literal["a", "b"]` for constrained string types (enables exhaustive match checking)
 - `TypedDict` is for describing shapes of existing dicts; use `BaseModel` for data you construct or validate

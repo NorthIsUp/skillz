@@ -4,11 +4,13 @@ description: A merged PR or an applied manifest is not "done" — done means the
 type: feedback
 originSessionId: ebf78e0f-dc9a-410e-b631-4422349723c2
 ---
+
 It isn't done if you haven't verified it.
 
 **Why:** I (Claude) have a habit of merging a PR and reporting "merged 🎉" or "should now work" without actually probing the resulting system. The user has had to repeatedly come back and tell me the thing didn't work — `OAuth state mismatch`, `502 Service Unavailable`, `MCPRemoteProxy Phase=Failed`, `Argo wiped the secret`. Every one of those was a case where I trusted the commit/merge as evidence of success when it wasn't.
 
 **How to apply:** After merging an infra change OR applying a manifest, do at least one of these BEFORE saying "done":
+
 - For an Argo Application: `kubectl get app <name> -n argocd` shows Synced + Healthy AND `kubectl get <resources>` shows them Ready.
 - For a Pulumi change: `pulumi-up.yml` workflow ran to success AND the new exports actually resolve in ESC.
 - For an HTTP endpoint change: `curl` it and confirm the expected status code + body shape.

@@ -4,6 +4,7 @@ description: Never use `# type: ignore[...]` or `# pyright: ignore[...]` to supp
 type: feedback
 originSessionId: 9c0e70c9-d17b-4b0a-8d32-f9ed79fcc8ea
 ---
+
 `# type: ignore[anything...]` and `# pyright: ignore[anything...]` are banned. If pyright/mypy complains, **explain the error and fix it at the source** — don't suppress.
 
 **Why:** Suppressions accumulate, hide real bugs, and signal that the type system is broken without anyone owning the fix. They also normalize "make pyright shut up" as a habit. The codebase's pyright-diff lint scopes errors to modified lines for a reason — new code should be clean.

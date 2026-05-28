@@ -7,6 +7,7 @@ type: project
 Celery workers on Fly.io production were getting SIGKILL (signal 9). Investigated 2026-04-02, fixed and merged same day as PR #620.
 
 **Resolution:** PR #620 "fix: resolve Celery worker SIGKILL loop, remove Better Stack, add Datadog monitors admin". Key changes:
+
 - Fixed the SIGKILL loop in heartbeat/healthcheck logic
 - Removed Better Stack monitoring
 - Added Datadog monitors admin for observability

@@ -4,6 +4,7 @@ description: Gotchas for ~/my/bin/cc-statusline — harness strips trailing whit
 type: project
 originSessionId: 251d4c70-44fc-4dab-add0-c3f5c8732c21
 ---
+
 Claude Code's statusline renderer strips trailing whitespace from the line it prints. Any right-alignment scheme that relies on padding with trailing spaces AFTER the content will collapse and stick the content to the left edge.
 
 **Why:** Verified 2026-04-23 — padded output rendered flush-left until a leading `·` sentinel was added; then the pad survived and the right segment appeared on the right.

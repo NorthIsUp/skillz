@@ -4,9 +4,11 @@ description: New convention for app-specific secrets in Pulumi ESC — separate 
 type: project
 originSessionId: 790c3d6e-12c9-4e75-ae3b-a5b4f28d2bb4
 ---
+
 App-specific secrets live in their own Pulumi ESC env at `teamclara/platform/app-<app-name>` (e.g., `teamclara/platform/app-linear-agent-bridge`), then imported into `teamclara/platform/clara` so the cluster's ClusterSecretStore (which only reads from `platform/clara`) sees them.
 
 Structure inside the per-app env:
+
 ```yaml
 values:
   app:

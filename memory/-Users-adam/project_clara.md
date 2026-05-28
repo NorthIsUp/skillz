@@ -4,11 +4,13 @@ description: Clara — EHR/medical project at ~/src/teamclara/Clara_V1, explorin
 type: project
 originSessionId: 20dc5378-97ed-456b-95ba-fd53caa9c1ce
 ---
+
 Clara is a medical/EHR project at ~/src/teamclara/Clara_V1.
 
 **Structure:** frontend, backend, ehr, canvas_plugin, scripts, documentation, staging directories.
 
 **Tech exploration (as of ~2026-03-20):**
+
 - Researched Python-based EHR/EMR systems
 - Evaluating **Medplum** (FHIR-based open-source EHR) for interacting with clinical data from Python
 - Interested in CDS Hooks for clinical decision support (e.g., drug-allergy conflict detection)

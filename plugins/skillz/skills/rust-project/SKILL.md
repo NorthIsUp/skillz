@@ -20,7 +20,7 @@ Create new Rust projects with production-ready CI and cross-platform release pip
 
 ## Project Structure
 
-```
+```text
 project-name/
 ├── .github/
 │   └── workflows/
@@ -59,6 +59,7 @@ jobs:
 ```
 
 Key decisions:
+
 - `dtolnay/rust-toolchain@stable` — no version pinning, always latest stable
 - `Swatinem/rust-cache@v2` — caches cargo registry + build artifacts
 - Test → clippy → fmt order (fail fast on logic errors before style)
@@ -88,6 +89,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Section types (Keep a Changelog): `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`.
 
 **Before tagging a release:**
+
 1. Move items from `[Unreleased]` into a new `[X.Y.Z] - YYYY-MM-DD` section
 2. Commit with a message like "chore: prepare vX.Y.Z"
 3. Tag and push: `git tag -a vX.Y.Z -m "vX.Y.Z" && git push origin vX.Y.Z`
@@ -216,6 +218,7 @@ jobs:
 **Replace `BINARY_NAME` with the actual binary name** (the `[[bin]] name` from Cargo.toml).
 
 Key decisions:
+
 - Named binaries (`name-arch-os`) not tar.gz archives — simpler to download and use
 - SHA256 checksums for verification
 - `softprops/action-gh-release@v2` — cleaner than `gh release create`
@@ -227,6 +230,7 @@ Key decisions:
 - Per-target cache keys to avoid cache collisions
 
 **Platform caveats:**
+
 - If your project depends on `ort` (ONNX Runtime bindings), drop `x86_64-apple-darwin` from the matrix — `ort` doesn't ship prebuilt binaries for Intel Macs. `aarch64-apple-darwin` covers modern Macs; Intel users can use Rosetta.
 - Other native-deps may have similar constraints. First release will fail loudly with "no prebuilt binaries for target X" — drop that target from the matrix.
 
@@ -265,13 +269,14 @@ git push origin main vX.Y.Z
 ```
 
 The release workflow builds all 5 targets and publishes a GitHub release with:
+
 - Named binaries per target (`BINARY_NAME-x86_64-linux`, etc.)
 - `checksums-sha256.txt` with SHA256 hashes
 - Release body = `## [X.Y.Z]` section from CHANGELOG.md + auto-generated PR notes appended
 
 ## .gitignore
 
-```
+```text
 /target
 ```
 

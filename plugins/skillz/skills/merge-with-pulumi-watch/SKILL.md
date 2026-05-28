@@ -34,13 +34,14 @@ deployment so the main session doesn't block.
   (typically 3–10 minutes).
 
 Skip when:
+
 - The PR doesn't touch Pulumi code (no `pulumi-up` will fire).
 - You're already in a tight verify loop and need synchronous feedback.
 
 ## Flow
 
 1. **Confirm PR is mergeable.** Check `gh pr view <num> --json
-   mergeStateStatus`. State must be `CLEAN` or `UNSTABLE` (UNSTABLE is
+mergeStateStatus`. State must be `CLEAN` or `UNSTABLE` (UNSTABLE is
    fine if only non-required checks are red — typically Bugbot
    NEUTRAL/SonarCloud).
 
@@ -51,14 +52,14 @@ Skip when:
    `run_in_background: true` and a self-contained prompt covering:
    - Identify the `pulumi-up.yml` run that started after the merge
      (`gh run list --workflow=pulumi-up.yml --limit 5 --json
-     status,conclusion,databaseId,createdAt`).
+status,conclusion,databaseId,createdAt`).
    - Poll until `status == completed` (sleep 30s between polls,
      max ~30min).
    - On `success`: report which Pulumi exports/resources changed
      (extract from logs if possible). If the PR mentioned new ESC
      env vars in its description, verify they're populated.
    - On `failure`: pull failed step logs (`gh run view <id>
-     --log-failed`), summarize the error in <300 words, and surface
+--log-failed`), summarize the error in <300 words, and surface
      to the user.
    - Return a one-paragraph summary either way.
 
@@ -67,7 +68,7 @@ Skip when:
 
 ## Subagent prompt template
 
-```
+```text
 You are watching the pulumi-up GitHub Actions run that fires after
 PR #<NUM> merges to main of teamclara/infrastructure.
 
@@ -103,7 +104,7 @@ Constraints:
 
 ## Spawning the subagent
 
-```
+```text
 Agent({
   description: "Watch pulumi-up for PR #<NUM>",
   subagent_type: "general-purpose",
@@ -123,6 +124,6 @@ their next turn surfaces it automatically.
   on top of the broken state. The notification is loud, but mid-flight
   changes need rollback consideration.
 
-For high-blast-radius PRs (cloud_sql schema migrations, GKE node
+For high-blast-radius PRs (`cloud_sql` schema migrations, GKE node
 config, IAM grants), prefer foreground polling — those are the cases
-where you want to *stop and stare* at the rollout.
+where you want to **stop and stare** at the rollout.

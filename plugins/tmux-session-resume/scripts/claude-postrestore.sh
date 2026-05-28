@@ -29,5 +29,7 @@ while IFS=$'\t' read -r sname widx pidx _cwd sid; do
         claude|*claude*) continue ;;
     esac
 
-    tmux send-keys -t "$target" "stty sane; exec $claude_bin --resume $sid" Enter
+    # Brief settle before respawn so iTerm2 -CC / resurrect handshake completes.
+    sleep 0.2
+    tmux respawn-pane -k -t "$target" "sh -c 'reset; exec $claude_bin --resume $sid'"
 done < "$tsv"

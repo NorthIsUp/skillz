@@ -4,6 +4,7 @@ description: GitHub status (PR merge state, CI conclusions, run completion) does
 type: feedback
 originSessionId: d1a35c46-7463-457f-b818-902ae7688a85
 ---
+
 I do NOT have reliable push notifications for GitHub state changes. Backgrounded `gh` poll loops occasionally exit before the actual terminal state is reached, miss merge conflicts that appear later, or finish without surfacing the most useful detail. The user has explicitly told me this multiple times.
 
 **Why:** When I rely on a single background poll, the user ends up watching CI in their browser and pinging me with screenshots ("conflict", "still slow", "failed on main"). That's their job back on them.
@@ -18,7 +19,7 @@ I do NOT have reliable push notifications for GitHub state changes. Backgrounded
    - OPEN/CLEAN (CI green, auto-merge will fire) → keep polling
    - MERGED → check what happened next (auto-triggered run?)
    - CLOSED → done
-   The poll loop must terminate on MERGED OR DIRTY (so I rebase) OR an explicit FAILURE in checks (so I read logs).
+     The poll loop must terminate on MERGED OR DIRTY (so I rebase) OR an explicit FAILURE in checks (so I read logs).
 
 3. **After every push, immediately check `gh pr view N --json mergeStateStatus`** before walking away. Don't trust the previous "auto-merge enabled" — it doesn't auto-rebase.
 

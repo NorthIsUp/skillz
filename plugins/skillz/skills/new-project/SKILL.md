@@ -23,10 +23,10 @@ existing GitHub template repos rather than hand-rolling config files.
 
 ## Templates
 
-| Language | Template repo | What it includes |
-|----------|--------------|------------------|
-| Python | `NorthIsUp/template-python` | mise · uv · ruff (we-love rules) · pyright · pytest · hk · single-pipeline release CI → PyPI (OIDC trusted publishing) |
-| Rust | `NorthIsUp/template-rust` | mise · cargo · clippy (pedantic+nursery) · rustfmt · hk · single-pipeline release CI → crates.io (`CARGO_REGISTRY_TOKEN` secret) |
+| Language | Template repo               | What it includes                                                                                                                 |
+| -------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Python   | `NorthIsUp/template-python` | mise · uv · ruff (we-love rules) · pyright · pytest · hk · single-pipeline release CI → PyPI (OIDC trusted publishing)           |
+| Rust     | `NorthIsUp/template-rust`   | mise · cargo · clippy (pedantic+nursery) · rustfmt · hk · single-pipeline release CI → crates.io (`CARGO_REGISTRY_TOKEN` secret) |
 
 Both share the same release model: one CI workflow runs tests on every push;
 on `main` it diffs the version field vs `HEAD~1` and, if bumped, tags

@@ -4,6 +4,7 @@ description: Running lint/test commands with the user's full PATH can mask tool-
 type: feedback
 originSessionId: d3703023-4730-4581-b065-26406513a4e0
 ---
+
 When debugging CI failures, running `hk check --pr` or `mise run ci:lint --ci` (which invokes `hk check --pr` under the hood) in a normal shell can silently succeed because globally-installed binaries (via npm, pipx, brew, etc.) are on PATH. CI only has what mise installs.
 
 **Why:** CI runner PATH is `$(mise bin-paths)` plus system essentials. If a tool isn't in `mise.toml` it won't be found in CI — even if the lint rule invokes it by bare name.

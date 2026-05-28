@@ -7,10 +7,12 @@ type: project
 Master branch has two-layer protection against direct pushes, set up 2026-04-07.
 
 **Layer 1 - Local (hk pre-commit hook):**
+
 - `no-commit-to-branch` hook in hk blocks commits directly to master
 - Error: "Cannot commit directly to protected branch 'master'"
 
 **Layer 2 - Remote (GitHub branch protection):**
+
 - Required PR reviews: 1 approving review
 - Dismiss stale reviews on new pushes: enabled
 - Enforce admins: true (no bypass for org admins)

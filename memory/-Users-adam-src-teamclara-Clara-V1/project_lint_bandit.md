@@ -11,11 +11,13 @@ type: project
 **How to apply:** When touching security checks or hk linting, use `mise run lint:bandit`. The hk.pkl `bandit` step calls `mise run lint:bandit -- {{files}}` for per-file pre-commit mode.
 
 ## Output modes
+
 - `tui` (default, TTY): Rich rust-style diagnostics - cyan `┌─` header, underlined source line, `▲` pointer at col_offset, continuation lines for multi-line spans
 - `plain` (non-TTY / pipe): one-liner `file:line:col: SEVERITY test_id (name) message`
 - `github` (set `--format github`): `::error`/`::warning` GitHub Actions annotations
 
 ## Key implementation details
+
 - Reads source file directly (`_read_line()`) for accurate indentation - never trust bandit's `code` field for col alignment
 - `col = col_offset - indent` (strips leading whitespace like phi-scan does)
 - Multi-line spans: `line_range` lists all lines; continuation lines strip only first-line indent to preserve relative indentation
@@ -24,4 +26,5 @@ type: project
 - `end_col_offset < col_offset` means multi-line span → highlight to EOL
 
 ## CI
+
 `security-checks.yml` bandit job now just runs `mise run lint:bandit` via `jdx/mise-action`. `deploy.yml` is the only fully redundant workflow (staging job disabled, superseded by ci.yml → ci-deploy.yml).

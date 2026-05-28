@@ -7,6 +7,7 @@ type: user
 Adam has an elaborate custom zsh setup in his dotfiles repo (`~/src/dotfiles`).
 
 **Shell config flow:**
+
 - `~/.zshrc` sources `~/.local/bin/env` (just PATH setup)
 - Real config lives at `$ZDOTDIR = ~/.config/zsh/` (set via `~/src/dotfiles/home/.zshenv`)
 - `~/.config/zsh/zshenv` → sources `~/my/lib/zsh/zshenv.d/**/*.zsh`
@@ -15,6 +16,7 @@ Adam has an elaborate custom zsh setup in his dotfiles repo (`~/src/dotfiles`).
 - Custom functions autoloaded from `~/my/functions/` and `~/my/lib/zsh/functions/`
 
 **Key components:**
+
 - Plugin manager: **zinit** (cache at `~/.cache/zinit`)
 - Prompt: **Starship** (config at `~/.config/starship.toml`), with elaborate multi-segment prompt including battery, git, kubernetes, custom flower emoji
 - Hooks auto-discovered: functions named `zsh-hook-{hooktype}-*` are registered via `99-zsh-hooks.zsh`

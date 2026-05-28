@@ -4,6 +4,7 @@ description: Adam's GitHub template repos for scaffolding new Python and Rust pr
 type: reference
 originSessionId: 321822de-13b7-4b13-ae3c-6312bfe183ae
 ---
+
 When scaffolding a new Python or Rust project, use these GitHub template
 repos via `gh repo create --template`:
 

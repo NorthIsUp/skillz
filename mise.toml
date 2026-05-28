@@ -28,6 +28,17 @@ run = "hk run pre-commit"
 description = "Validate SKILL.md frontmatter"
 run = "scripts/validate-skills.sh"
 
+[tasks.bump]
+description = "Bump a plugin's version (usage: mise run bump <plugin> [patch|minor|major])"
+run = "scripts/bump-plugin.sh"
+
+[tasks.version-guard]
+description = "Locally check that changed plugins have bumped versions (vs origin/main)"
+run = """
+BASE_SHA=$(git merge-base HEAD origin/main) HEAD_SHA=$(git rev-parse HEAD) \
+  scripts/version-guard.sh
+"""
+
 [tasks.auto-push]
 description = "Stage all changes, commit, and push (used by mise watch)"
 run = "scripts/auto-push.sh"

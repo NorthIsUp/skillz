@@ -4,6 +4,7 @@ description: Always run 1-3 verification checks (pgrep, which, ls, launchctl lis
 type: feedback
 originSessionId: 757e06f7-ef05-4249-ab02-db530465b5c6
 ---
+
 Before suggesting or running any command, run 1-3 quick checks to confirm the referenced process names, binary paths, CLI flags, file paths, or service identifiers actually exist on this machine. Examples: `pgrep -fl <name>`, `which <bin>`, `launchctl list | grep <id>`, `ls <path>`, `man <cmd>` for flag syntax.
 
 **Why:** Adam was burned by a suggestion to `sudo killall hidd` for a stuck mouse click on macOS Tahoe — `hidd` no longer exists as a user-space process on recent macOS, so the command would have returned "No matching processes found." He wants 100% accurate commands, not stale advice from training data.

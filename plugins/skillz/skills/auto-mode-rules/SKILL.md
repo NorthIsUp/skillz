@@ -43,6 +43,7 @@ These are the user's standing instructions for autonomous work. They override Cl
 
    ```markdown
    ## YYYY-MM-DD — <short title>
+
    - **Where:** path/to/file.ext:line
    - **What:** one sentence describing the compromise
    - **Why:** the constraint that forced it (deadline, blocked dependency, scope cut)

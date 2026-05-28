@@ -4,6 +4,7 @@ description: For USB cameras to work through the LG UltraFine 32U990A TB5 hub on
 type: project
 originSessionId: 0257aa82-8de1-4414-b661-d78931ce03d0
 ---
+
 User has an LG UltraFine evo 32U990A (32" 6K, Thunderbolt 5) plugged into a MacBook Pro (Apple Silicon) as the primary dock, with a TB5 cable from LG. Getting USB cameras (specifically Insta360 Link 2) working through the monitor's downstream USB-C 3.2 Gen 2 ports required two things:
 
 1. **System Settings → Privacy & Security → Allow accessories to connect → Always.** Without this, the entire USB hub branch is blocked while display (DP Alt) keeps working. Symptom: the device doesn't enumerate at all.

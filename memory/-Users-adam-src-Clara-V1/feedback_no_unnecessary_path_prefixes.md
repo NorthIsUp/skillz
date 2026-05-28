@@ -5,6 +5,7 @@ type: feedback
 ---
 
 Don't prefix commands with unnecessary path segments. This includes:
+
 - `cd backend &&` when a `dir` parameter exists
 - Absolute paths like `ls /Users/adam/src/` when `ls src` works from the current directory
 - Any redundant path prefix that the working directory already covers
