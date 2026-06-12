@@ -47,8 +47,9 @@ resolved/dismissed state, not the presence of a reply.
 nowhere near done — and a ✅ reply on an accepted finding that you *didn't resolve*
 isn't done either: the open thread still needs work or a resolve. A 👍 with no
 pushed fix and no resolved thread is an **unfinished** item: process it now, don't
-skip it. This is the trap that made past runs silently drop greptile findings —
-they got a 👍 and nothing else, then every re-run treated the 👍 as "done."
+skip it. This guards a real failure seen in the wild — a run that reacted 👍 on
+greptile findings and then stopped, leaving the threads open and unfixed: a
+reaction must never read as "handled."
 
 **Non-actionable automated comments — the ONLY things you skip wholesale.** These
 two `issue_comment` shapes are pure status/overview noise with nothing to act on.
