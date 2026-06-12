@@ -36,6 +36,34 @@ There are four distinct sources. Fetch in parallel:
 Deduplicate by `(source, id)`. Skip anything already `RESOLVED`, already replied
 to by the current user, or authored by the current user.
 
+**Done means the thread is RESOLVED (collapsed) — not merely replied to.** A
+resolvable item (`review_thread`, or a `CHANGES_REQUESTED` `review_body`) is only
+handled once you've driven it to its closed terminal state: an accepted finding
+gets the fix pushed, a ✅ reply, **and the thread resolved so it collapses**; a
+`CHANGES_REQUESTED` review gets dismissed. The bar for re-run skipping is that
+resolved/dismissed state, not the presence of a reply.
+
+**A reaction is even less than a reply.** A 👀/👍/👎 reaction with no follow-up is
+nowhere near done — and a ✅ reply on an accepted finding that you *didn't resolve*
+isn't done either: the open thread still needs work or a resolve. A 👍 with no
+pushed fix and no resolved thread is an **unfinished** item: process it now, don't
+skip it. This guards a real failure seen in the wild — a run that reacted 👍 on
+greptile findings and then stopped, leaving the threads open and unfixed: a
+reaction must never read as "handled."
+
+**Non-actionable automated comments — the ONLY things you skip wholesale.** These
+two `issue_comment` shapes are pure status/overview noise with nothing to act on.
+Skip them outright (no reaction, no reply) and count them under "Already resolved":
+
+- a comment whose body starts with `<details><summary><h3>Greptile Summary</h3></summary>` — greptile's PR overview.
+- a comment whose body starts with `<h1>Dependency Review</h1>` — the GitHub Actions dependency-review report.
+
+Nothing else is skippable as "bot noise." In particular, **greptile inline review
+comments are real findings** — the P0/P1/P2/P3 badge comments (often carrying a
+` ```suggestion ` block) are exactly the items you must process: apply the
+suggestion (or reject with a grounded reason), reply in the thread, and resolve.
+"It came from a bot" is never a reason to skip an inline thread.
+
 Print the categorized summary table:
 
 ```text
