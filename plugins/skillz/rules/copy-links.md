@@ -26,3 +26,6 @@ space)
   (no outer brackets) for short commands.
 - Skip for prose; stop for the session if the user says links render as
   noise.
+
+Requires a `pbcopy://` URI handler (macOS). If links do nothing when
+clicked, install one: `${CLAUDE_PLUGIN_ROOT}/bin/install-pbcopy-uri-handler`.

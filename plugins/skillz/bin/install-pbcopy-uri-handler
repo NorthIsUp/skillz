@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# Install a macOS handler for pbcopy:// URIs (used by the copy-links rule).
+#
+# Builds a small AppleScript applet at ~/Applications/pbcopy-uri-handler.app
+# that claims the pbcopy: scheme and runs the bundled uri-handler-pbcopy
+# script, which copies the URI's text to the clipboard and shows a
+# notification. Re-run to update; the applet is self-contained (the handler
+# script is copied into the bundle).
+set -euo pipefail
+
+if [[ "$(uname)" != "Darwin" ]]; then
+  echo "macOS only (uses pbcopy + LaunchServices)" >&2
+  exit 1
+fi
+
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+handler="$here/uri-handler-pbcopy"
+app="${PBCOPY_HANDLER_APP:-$HOME/Applications/pbcopy-uri-handler.app}"
+
+mkdir -p "$(dirname "$app")"
+rm -rf "$app"
+
+osacompile -o "$app" <<'APPLESCRIPT'
+on open location this_URL
+	set handler_path to POSIX path of (path to me) & "Contents/Resources/uri-handler-pbcopy"
+	do shell script quoted form of handler_path & " " & quoted form of this_URL
+end open location
+APPLESCRIPT
+
+cp "$handler" "$app/Contents/Resources/uri-handler-pbcopy"
+chmod +x "$app/Contents/Resources/uri-handler-pbcopy"
+
+plist="$app/Contents/Info.plist"
+plutil -replace CFBundleIdentifier -string "sh.skillz.pbcopy-uri-handler" "$plist"
+plutil -replace CFBundleURLTypes -json '[{"CFBundleURLName":"pbcopy","CFBundleURLSchemes":["pbcopy"]}]' "$plist"
+
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$app"
+
+echo "installed: $app"
+echo "test it:   open 'pbcopy://?t=hello%20world'"
