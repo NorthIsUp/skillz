@@ -17,6 +17,13 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 handler="$here/uri-handler-pbcopy"
 app="${PBCOPY_HANDLER_APP:-$HOME/Applications/pbcopy-uri-handler.app}"
 
+# Fast no-op when already installed with the current handler (Setup hook
+# re-runs this; ponytail: applet-script-only changes need a manual rm -rf).
+if cmp -s "$handler" "$app/Contents/Resources/uri-handler-pbcopy" 2>/dev/null; then
+  echo "already installed: $app"
+  exit 0
+fi
+
 mkdir -p "$(dirname "$app")"
 rm -rf "$app"
 
