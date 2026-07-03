@@ -1,8 +1,3 @@
----
-description: Append pbcopy:// copy links to copyable snippets in terminal output
-alwaysApply: true
----
-
 # Copy-to-clipboard links in terminal output
 
 When showing a snippet worth copying (command, path, token, URL,

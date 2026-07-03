@@ -1,5 +1,15 @@
 {
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ \"$(uname)\" != Darwin ] || cat \"${CLAUDE_PLUGIN_ROOT}/context/copy-links.md\""
+          }
+        ]
+      }
+    ],
     "Setup": [
       {
         "hooks": [
