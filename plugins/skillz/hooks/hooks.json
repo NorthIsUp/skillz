@@ -1,0 +1,25 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ \"$(uname)\" != Darwin ] || cat \"${CLAUDE_PLUGIN_ROOT}/context/copy-links.md\""
+          }
+        ]
+      }
+    ],
+    "Setup": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ \"$(uname)\" != Darwin ] || \"${CLAUDE_PLUGIN_ROOT}/bin/install-pbcopy-uri-handler\"",
+            "statusMessage": "skillz: installing pbcopy:// URI handler"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,84 @@
+#!/usr/bin/env python3
+"""
+pbcopy URI handler — copies text to the macOS clipboard from a URL.
+
+Usage from a clickable terminal hyperlink (OSC 8):
+    pbcopy://?t=<urlencoded-text>
+or with the text as the path:
+    pbcopy://<urlencoded-text>
+
+Examples:
+    pbcopy://?t=hello%20world
+    pbcopy://?t=gh%20secret%20set%20PULUMI_ACCESS_TOKEN
+"""
+
+import logging
+import subprocess
+import sys
+from pathlib import Path
+from urllib.parse import parse_qs, unquote, urlparse
+
+LOG_FILE = Path("~/Library/Logs/uri-handler-pbcopy.log").expanduser()
+LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+logging.basicConfig(
+    filename=str(LOG_FILE),
+    level=logging.DEBUG,
+    format="[%(asctime)s] %(levelname)s %(message)s",
+)
+log = logging.getLogger(__name__)
+
+
+def notify(msg: str, title: str = "pbcopy") -> None:
+    # Pass msg/title as AppleScript `argv` items, NOT interpolated into the
+    # script source — `text` is attacker-controllable (it comes straight from
+    # the pbcopy:// URI), so interpolation would allow AppleScript injection.
+    subprocess.run(
+        [
+            "osascript",
+            "-e", "on run argv",
+            "-e", "display notification (item 1 of argv) with title (item 2 of argv)",
+            "-e", "end run",
+            msg,
+            title,
+        ],
+        check=False,
+    )
+
+
+def extract_text(uri: str) -> str:
+    parsed = urlparse(uri)
+    qs = parse_qs(parsed.query, keep_blank_values=True)
+    for key in ("t", "text", "q"):
+        if key in qs and qs[key]:
+            return qs[key][0]
+    # fall back to path / netloc body, e.g. pbcopy://hello%20world
+    body = (parsed.netloc + parsed.path).lstrip("/")
+    return unquote(body)
+
+
+def main() -> int:
+    if len(sys.argv) != 2:
+        notify("Error: no url provided")
+        log.error("bad invocation: %r", sys.argv)
+        return 2
+
+    uri = sys.argv[1]
+    log.info("invoked: %s", uri)
+
+    text = extract_text(uri)
+    if not text:
+        notify("Error: empty text")
+        return 1
+
+    proc = subprocess.run(["pbcopy"], input=text.encode("utf-8"), check=False)
+    if proc.returncode != 0:
+        notify("pbcopy failed")
+        return proc.returncode
+
+    preview = text if len(text) <= 60 else text[:57] + "..."
+    notify(f"copied: {preview}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
