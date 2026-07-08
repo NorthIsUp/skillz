@@ -29,9 +29,9 @@ populate even with `# [MISE] raw = true` (verified mise 2026.7.2).
 - **Defaults** → `default="..."` on the spec; the env var is then always
   set, so don't re-default in the script (`${usage_timeout}`, not
   `${usage_timeout:-300}`).
-- **Env-var fallback** → `env="VAR"` on the flag (precedence: explicit flag
-  > env var > default). Never hand-roll `${usage_x:-${VAR:-}}` chains.
-  KDL booleans are `#true`, never `"true"`.
+- **Env-var fallback** → `env="VAR"` on the flag (precedence:
+  `explicit flag > env var > default`). Never hand-roll
+  `${usage_x:-${VAR:-}}` chains. KDL booleans are `#true`, never `"true"`.
 
 ## Multi-value args
 
