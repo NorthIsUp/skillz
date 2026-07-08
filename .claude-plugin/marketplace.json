@@ -14,9 +14,12 @@
       "name": "skillz",
       "source": "./plugins/skillz",
       "description": "Personal skills, agents, and commands",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "category": "productivity",
-      "tags": ["personal", "skills"]
+      "tags": [
+        "personal",
+        "skills"
+      ]
     },
     {
       "name": "tmux-session-resume",
@@ -24,7 +27,13 @@
       "description": "Save & auto-restore tmux sessions with Claude Code --resume per pane",
       "version": "0.1.1",
       "category": "productivity",
-      "tags": ["tmux", "resurrect", "continuum", "claude-code", "resume"]
+      "tags": [
+        "tmux",
+        "resurrect",
+        "continuum",
+        "claude-code",
+        "resume"
+      ]
     }
   ]
 }
