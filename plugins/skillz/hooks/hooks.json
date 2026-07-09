@@ -6,6 +6,10 @@
           {
             "type": "command",
             "command": "[ \"$(uname)\" != Darwin ] || cat \"${CLAUDE_PLUGIN_ROOT}/context/copy-links.md\""
+          },
+          {
+            "type": "command",
+            "command": "set -- \"${CLAUDE_PLUGIN_ROOT}\"/rules/*.md; [ -e \"$1\" ] || exit 0; printf '# Always-active rules (skillz)\\nFollow these every turn.\\n'; for f in \"$@\"; do printf '\\n---\\n'; awk 'BEGIN{d=0} /^---[[:space:]]*$/{d++; next} d>=2||d==0{print}' \"$f\"; done"
           }
         ]
       }
