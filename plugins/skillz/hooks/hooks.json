@@ -6,6 +6,10 @@
           {
             "type": "command",
             "command": "[ \"$(uname)\" != Darwin ] || cat \"${CLAUDE_PLUGIN_ROOT}/context/copy-links.md\""
+          },
+          {
+            "type": "command",
+            "command": "{ set -- \"${CLAUDE_PLUGIN_ROOT}\"/rules/*.md; [ -e \"$1\" ] && { mkdir -p \"${HOME}/.claude/rules\"; for f in \"$@\"; do cp -f \"$f\" \"${HOME}/.claude/rules/skillz-$(basename \"$f\")\"; done; }; } >/dev/null 2>&1; exit 0"
           }
         ]
       }
@@ -17,11 +21,6 @@
             "type": "command",
             "command": "[ \"$(uname)\" != Darwin ] || \"${CLAUDE_PLUGIN_ROOT}/bin/install-pbcopy-uri-handler\"",
             "statusMessage": "skillz: installing pbcopy:// URI handler"
-          },
-          {
-            "type": "command",
-            "command": "set -- \"${CLAUDE_PLUGIN_ROOT}\"/rules/*.md; [ -e \"$1\" ] || exit 0; mkdir -p \"${HOME}/.claude/rules\" && for f in \"$@\"; do cp -f \"$f\" \"${HOME}/.claude/rules/skillz-$(basename \"$f\")\"; done",
-            "statusMessage": "skillz: installing rules into ~/.claude/rules"
           }
         ]
       }
