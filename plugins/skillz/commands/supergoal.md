@@ -41,11 +41,12 @@ If the phrase is too vague to pin a done-condition (e.g. "make it better"),
 state the single most likely interpretation and note what you assumed rather
 than asking.
 
-**Always append this completion instruction to the objective**, verbatim intent:
+**Always append a completion instruction to the objective**, pointing at the
+shared ceremony so the box spec lives in one place:
 
-> When every item is done, print a summary in a nice box titled with 🎉 that
-> gives: the outcome achieved, how long it took (wall-clock), how many turns,
-> and how many tokens used.
+> When every item is done, run the `/supergoal-complete` routine: verify the
+> done-condition, then print a 🎉 box with the outcome, wall-clock time, turn
+> count, and tokens used.
 
 Output **only** the polished `/goal start` block, ready to paste, followed by a
 copy link. It may be multi-line (a numbered list + the completion instruction on
