@@ -5,10 +5,11 @@ description: Finish a goal — verify it's really done, then print a 🎉 comple
 The current objective is finished (or you were asked to wrap up). Run the
 completion ceremony.
 
-**1. Verify before you celebrate.** Confirm the done-condition actually holds —
-run the check (tests pass, `gh pr view` shows MERGED, the file exists, the
-behavior is observed). Evidence, not assumption. If it does **not** hold, say so
-plainly and keep working instead of printing the box.
+**1. Empirically test before you celebrate.** A goal is not met until it has been
+empirically tested. Actually _exercise_ the done-condition — run the tests, hit
+the endpoint, drive the flow, confirm `gh pr view` shows MERGED, open the file.
+Observed evidence, not assumption; "looks done" and "typechecks" are not done. If
+it does **not** hold, say so plainly and keep working instead of printing the box.
 
 **2. Print the summary** in a box titled with 🎉. Include, one line each:
 

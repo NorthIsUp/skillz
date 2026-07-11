@@ -23,6 +23,10 @@ Rewrite the phrase into an objective that is:
   file that exists, an observed behavior). This is what the Stop hook keys on;
   without it the goal can never satisfy — but state it as an outcome, not a
   script.
+- **Empirically tested** — a goal is not met until it has been empirically
+  tested. Bake this into the done-condition: the change must be _exercised_ and
+  observed to work (run the command, hit the endpoint, drive the flow), not just
+  written, typechecked, or assumed. "Looks done" is not done.
 - **Specific** — keep the concrete nouns (PR number, file path, service, test
   name) so it stays unambiguous turn after turn.
 - **Achievable in this session** — a bounded outcome, not a standing policy or a
@@ -44,9 +48,9 @@ than asking.
 **Always append a completion instruction to the objective**, pointing at the
 shared ceremony so the box spec lives in one place:
 
-> When every item is done, run the `/supergoal-complete` routine: verify the
-> done-condition, then print a 🎉 box with the outcome, wall-clock time, turn
-> count, and tokens used.
+> When every item is done, run the `/supergoal-complete` routine: empirically
+> test that the done-condition holds, then print a 🎉 box with the outcome,
+> wall-clock time, turn count, and tokens used.
 
 Output **only** the polished `/goal start` block, ready to paste, followed by a
 copy link. It may be multi-line (a numbered list + the completion instruction on
