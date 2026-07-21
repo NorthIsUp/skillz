@@ -45,7 +45,7 @@ Dotted leaders align state; a status glyph ends every line; a boxed header
 titles the block; rules split phases. Reuse the _same_ glyphs everywhere:
 ✅ done · ⏳ in progress · ⬜ pending · ❌ failed · 🔴 blocked · ⚠️ caveat/track
 · 🔍 investigating · 🧪 tests/CI · 🩺 health · 🚀 deploy · 🎯 goal · 📦 artifact
-· 🗄️ data/table.
+· 🗄️ data/table · 🔀 PR.
 
 ```text
 ╔═══════════════════════════════════════════════════════╗
@@ -90,6 +90,17 @@ alignment easy.
 
 Keep it to what changed and what's open — no re-narrating the whole session.
 A small task needs no box: a couple anchored lines then `result:`.
+
+**PRs always show current state.** A `🔀 PR` line carries the PR's live state
+right after the number, before the URL, so the reader sees status without
+opening the link — `OPEN` / `DRAFT` / `MERGED` / `CLOSED`:
+
+```text
+║  🔀 PR ........ #44 OPEN https://github.com/org/repo/pull/44
+```
+
+Not `#44 https://…` — a bare number hides whether it merged. Refetch the
+state at summary time; never carry a stale `OPEN` after a merge.
 
 Pairs with the short-comments rule: brevity still wins — this shapes what
 little you write, it is not license to write more. Reach for the full boxed
