@@ -9,7 +9,7 @@
           },
           {
             "type": "command",
-            "command": "{ mkdir -p \"${HOME}/.claude/rules\"; rm -f \"${HOME}/.claude/rules\"/skillz-*.md; set -- \"${CLAUDE_PLUGIN_ROOT}\"/rules/*.md; [ -e \"$1\" ] && for f in \"$@\"; do cp -f \"$f\" \"${HOME}/.claude/rules/skillz-$(basename \"$f\")\"; done; } >/dev/null 2>&1; exit 0"
+            "command": "{ mkdir -p \"${HOME}/.claude/rules\"; for f in \"${HOME}/.claude/rules\"/skillz-*.md; do [ -e \"$f\" ] || continue; b=${f##*/}; [ -e \"${CLAUDE_PLUGIN_ROOT}/rules/${b#skillz-}\" ] || rm -f \"$f\"; done; set -- \"${CLAUDE_PLUGIN_ROOT}\"/rules/*.md; [ -e \"$1\" ] && for f in \"$@\"; do cp -f \"$f\" \"${HOME}/.claude/rules/skillz-$(basename \"$f\")\"; done; } >/dev/null 2>&1; exit 0"
           }
         ]
       }
