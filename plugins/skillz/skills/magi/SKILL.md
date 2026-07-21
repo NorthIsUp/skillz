@@ -81,9 +81,9 @@ position and vote — then the verdict line. MAGI-terminal aesthetic is welcome;
 keep the ASCII light.
 
 ```text
-╔══════════════════════════════════════╗
-║  MAGI  ·  DELIBERATION  ·  <proposal> ║
-╚══════════════════════════════════════╝
+╔════════════════════════════════════════╗
+║  MAGI  ·  DELIBERATION  ·  <proposal>  ║
+╚════════════════════════════════════════╝
 
 ── MELCHIOR-1 · The Scientist ──────────
 <final position, 1–2 lines>            VOTE: APPROVE
