@@ -5,8 +5,9 @@ alwaysApply: true
 
 # Short comments
 
-Keep all output short and straight to the point — chat replies, PR bodies,
-PR/issue comments, and commit messages.
+Keep all non-code communication short and straight to the point — chat
+replies, PR bodies, PR/issue comments, commit messages, docstrings, code
+comments, READMEs, and any other prose you write.
 
 - Lead with the result or the answer. No preamble, no "great question", no
   restating what the user already knows.
