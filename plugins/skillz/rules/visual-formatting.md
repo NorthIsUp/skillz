@@ -20,51 +20,86 @@ Make replies scannable, not longer. Structure, not verbosity.
 Match weight to importance — heaviest for the top-level title, lighter as you
 nest. Don't stack two heavy headers back to back.
 
+important: ignore right hand borders so we don't need to worry about text wrapping
+
 ```text
-╔══════════════════════════════╗   ← L1  session / report title
-║  TITLE                        ║
-╚══════════════════════════════╝
+╔══════════════════════════════   ← L1  session / report title
+║  TITLE
+╚══════════════════════════════
 
-┌──────────────────────────────┐   ← L2  major section (boxed)
-│  Section                       │
-└──────────────────────────────┘
+┌──────────────────────────────   ← L2  major section (boxed)
+│  Section
+└──────────────────────────────
 
-── Section ──────────────────────   ← L2  section (single rule, lighter)
+── Section ────────────────────   ← L2  section (single rule, lighter)
 
 🎯 Phase — inline anchor + em dash   ← L3  phase / group
 
-────────────────────────────────    ← divider between phases (plain rule)
+───────────────────────────────    ← divider between phases (plain rule)
 ```
 
 Rules of thumb: one L1 per message; `─` (U+2500) for dividers, full-width-ish;
 box-drawing only, never `---`/`===` ASCII (renders as a markdown hr or heading).
 
-## Example — a status report
+## headers
 
-Dotted leaders align state; a status glyph ends every line; a boxed header
-titles the block; rules split phases. Reuse the _same_ glyphs everywhere:
-✅ done · ⏳ in progress · ⬜ pending · ❌ failed · 🔴 blocked · ⚠️ caveat/track
+Two header rows anchor a dashboard:
+
+- **Title** — a boxed L1 (`╔ ║ ╚`) wrapping the report title. One per report.
+- **Goal** — a tree branch `├─ 🎯 Goal N — <desc> ──`: the `├─` roots it to the
+  left rail, `🎯` anchors it, an em dash introduces the description, and a short
+  trailing rule closes the row.
+
+## contents
+
+Under each goal, group items by **status bucket**, not in a flat list:
+
+- **Bucket row** — sits on the rail as `│ <glyph> <label>` (e.g. `│ ✅ complete`,
+  `│ ⏳ in progress`, `│ ⬜ upcoming`, `│ 👀 watching`). The glyph names the
+  bucket's state.
+- **Item lines** — indented one step further under the rail as
+  `│   <glyph> <item> ..... <state>`. A leading anchor glyph, then the item, then
+  dotted leaders aligning a short state or note at the right. One item per line.
+
+Reuse the _same_ glyphs everywhere:
+✅ done · ⏳ in progress · ⬜ pending · ❌ failed · 🔴 blocked · 👀 watching · ⚠️ caveat/track
 · 🔍 investigating · 🧪 tests/CI · 🩺 health · 🚀 deploy · 🎯 goal · 📦 artifact
 · 🗄️ data/table · 🔀 PR.
 
+## multiple goals
+
+Stack goals highest-priority (or newest) first — `Goal 2` above `Goal 1`.
+Separate them with a bare `│` spacer line. Each goal repeats the header +
+bucket structure independently, so the eye can scan one goal at a time.
+
+## Example — a status report
+
+Dotted leaders align state; a status glyph ends every line; a boxed header
+titles the block; rules split phases.
+
 ```text
-╔═══════════════════════════════════════════════════════╗
-║  CLA-1980  ·  medallion ETL  ·  merge + prod deploy   ║
-╚═══════════════════════════════════════════════════════╝
-
-🎯 Goal 2 — ship the Dagster ETL foundation to prod
-
-📦 merge #2139 → main ........ ✅ done   (squash 6d4194248)
-🧪 main CI ................... ⏳ in progress
-🚀 staging deploy + migrate .. ⏳ queued behind CI
-🩺 verify staging migrate .... ⬜ pending
-
-────────────────────────────────────────────────────────
-
-🎯 Goal 1 — prod stability
-
-🩺 legacy Celery ETL ......... ✅ STABLE  (8/8 monitors OK)
-⚠️  psycopg async-conn regression (~1.3k/day) — track, not blocking
+╔════════════════════════════════════════════════════════
+║  CLA-1980  ·  medallion ETL  ·  merge + prod deploy
+╚════════════════════════════════════════════════════════
+├─ 🎯 Goal 2 — ship the Dagster ETL foundation to prod ──
+│
+│ ✅ complete
+│   📦 merge #2139 → main ........ complete   (squash 6d4194248)
+│
+│ ⏳ in progress
+│   🧪 main CI ................... in progress
+│   🚀 staging deploy + migrate .. queued behind CI
+│
+│ ⬜ upcoming
+│   🩺 verify staging migrate .... pending
+│
+├─ 🎯 Goal 1 — prod stability ───────────────────────────
+│
+│  ✅ complete
+│   🩺 legacy Celery ETL ......... STABLE  (8/8 monitors OK)
+│
+│  👀 watching
+│   ⚠️  psycopg async-conn regression (~1.3k/day) — track, not blocking
 ```
 
 ## Completion summary
@@ -78,13 +113,13 @@ alignment easy.
 ```text
 ╔════════════════════════════════════════════════════════
 ║  ✅ CLA-1980 — medallion ETL shipped to prod
-║
+╟────────────────────────────────────────────────────────
 ║  📦 merged ...... #2139 → main (6d4194248)
 ║  🚀 deployed .... staging + prod, migrate clean
 ║  🩺 verified .... 8/8 monitors green, legacy ETL stable
 ║  ⚠️  follow-up .. psycopg async-conn regression — tracked, not blocking
-║
-║  result: medallion ETL live in prod; migrate verified clean, legacy green.
+╟─ result ───────────────────────────────────────────────
+║  medallion ETL live in prod; migrate verified clean, legacy green.
 ╚════════════════════════════════════════════════════════
 ```
 
