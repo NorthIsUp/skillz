@@ -1,6 +1,5 @@
 ---
-description: Use emoji anchors and ASCII structure to make output scannable
-alwaysApply: true
+description: Shaping a reply, status report, or completion summary to be scannable
 ---
 
 # Visual formatting for scannability
@@ -18,9 +17,9 @@ Make replies scannable, not longer. Structure, not verbosity.
 ## Header options
 
 Match weight to importance — heaviest for the top-level title, lighter as you
-nest. Don't stack two heavy headers back to back.
-
-important: ignore right hand borders so we don't need to worry about text wrapping
+nest. Don't stack two heavy headers back to back. Leave the right wall off
+every box: an open-right box (`║` on the left only) keeps alignment easy and
+sidesteps text wrapping entirely.
 
 ```text
 ╔══════════════════════════════   ← L1  session / report title
@@ -41,7 +40,7 @@ important: ignore right hand borders so we don't need to worry about text wrappi
 Rules of thumb: one L1 per message; `─` (U+2500) for dividers, full-width-ish;
 box-drawing only, never `---`/`===` ASCII (renders as a markdown hr or heading).
 
-## headers
+## Dashboard headers
 
 Two header rows anchor a dashboard:
 
@@ -50,7 +49,7 @@ Two header rows anchor a dashboard:
   left rail, `🎯` anchors it, an em dash introduces the description, and a short
   trailing rule closes the row.
 
-## contents
+## Contents
 
 Under each goal, group items by **status bucket**, not in a flat list:
 
@@ -66,7 +65,7 @@ Reuse the _same_ glyphs everywhere:
 · 🔍 investigating · 🧪 tests/CI · 🩺 health · 🚀 deploy · 🎯 goal · 📦 artifact
 · 🗄️ data/table · 🔀 PR.
 
-## multiple goals
+## Multiple goals
 
 Stack goals highest-priority (or newest) first — `Goal 2` above `Goal 1`.
 Separate them with a bare `│` spacer line. Each goal repeats the header +
@@ -106,9 +105,7 @@ titles the block; rules split phases.
 
 When a task wraps, close with a compact summary — what shipped, what's left,
 one line each. Put the _whole_ summary inside the box: title, status lines,
-and the `result:` line all live between the top and bottom rules. The right
-wall is optional — an open-right box (`║` on the left only) is fine and keeps
-alignment easy.
+and the `result:` line all live between the top and bottom rules.
 
 ```text
 ╔════════════════════════════════════════════════════════
@@ -137,7 +134,6 @@ opening the link — `OPEN` / `DRAFT` / `MERGED` / `CLOSED`:
 Not `#44 https://…` — a bare number hides whether it merged. Refetch the
 state at summary time; never carry a stale `OPEN` after a merge.
 
-Pairs with the short-comments rule: brevity still wins — this shapes what
-little you write, it is not license to write more. Reach for the full boxed
-dashboard on multi-phase status; a couple of anchored lines is plenty for a
-small update.
+Pairs with `ruthless-comments`: brevity still wins — this shapes what little
+you write, it is not license to write more. Reach for the full boxed dashboard
+on multi-phase status; a couple of anchored lines is plenty for a small update.

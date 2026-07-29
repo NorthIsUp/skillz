@@ -1,6 +1,10 @@
 ---
-description: Use exhaustive switch handling for TypeScript unions and enums
+description: Writing a TypeScript switch over a discriminated union or enum
 alwaysApply: true
 ---
 
-typescript-exhaustive-switch: In switch statements over discriminated unions or enums, use a `never` check in the default case so newly added variants cause compile-time failures until handled.
+# Exhaustive TypeScript switches
+
+In TypeScript, a switch over a discriminated union or enum gets a `never`
+assertion in the default case, so a newly added variant is a compile error
+until every branch handles it.
