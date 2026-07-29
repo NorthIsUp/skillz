@@ -32,6 +32,10 @@ run = "scripts/validate-skills.sh"
 description = "Bump a plugin's version (usage: mise run bump <plugin> [patch|minor|major])"
 run = "scripts/bump-plugin.sh"
 
+[tasks.test-bump]
+description = "Self-check bump-plugin.sh (version math + prettier-clean output)"
+run = "scripts/test-bump-plugin.sh"
+
 [tasks.version-guard]
 description = "Locally check that changed plugins have bumped versions (vs origin/main)"
 run = """

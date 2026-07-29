@@ -33,6 +33,10 @@ jq --arg n "$name" --arg v "$next" \
   '.plugins |= map(if .name == $n then .version = $v else . end)' \
   "$marketplace" >"$tmp" && mv "$tmp" "$marketplace"
 
+# jq re-expands short arrays that prettier keeps inline, so the pre-commit
+# prettier hook would reject what we just wrote.
+prettier --write "$manifest" "$marketplace" >/dev/null
+
 echo "${name}: ${current} -> ${next}"
 echo "  ${manifest}"
 echo "  ${marketplace}"
