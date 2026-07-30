@@ -132,7 +132,22 @@ Before adding a new dependency, check whether `anyio` or `asyncstdlib` already c
 - Layout: tests live next to source as `test_*.py`, or in a parallel `tests/` tree mirroring the package.
 - One behavior per test. The name says what it asserts: `test_user_create_rejects_empty_email`.
 - Async: `@pytest.mark.anyio` on async tests; parametrize the backend if the code is supposed to work under both asyncio and trio.
-- Fixtures: prefer small fixtures (`def make_user(**overrides)`) over giant shared fixtures. but still a `@pytest.fixture`
+- Fixtures: a test-file helper that builds and returns a domain object is a fixture, not a private function. `_make_user(...) -> User` becomes a `@pytest.fixture` returning the factory, so it composes with the fixtures it needs (`db`, `settings`, a stub clock) and a `conftest.py` can override it per package:
+
+  ```python
+  @pytest.fixture
+  def make_user(db: None) -> Callable[..., User]:
+      """Unique username/email per call, so assertions never collide with existing rows."""
+
+      def _make(prefix: str, *, is_active: bool = True) -> User:
+          suffix = uuid.uuid4().hex[:12]
+          return User.objects.create(username=f"{prefix}-{suffix}", email=f"{prefix}-{suffix}@example.com", is_active=is_active)
+
+      return _make
+  ```
+
+  A `Protocol` types the keyword arguments when `Callable[..., User]` is too loose. Prefer several small factory fixtures over one giant shared fixture.
+
 - Don't mock what you own. Construct real pydantic models. Mock only at I/O boundaries (HTTP, DB, time, randomness).
 - Property-based tests (`hypothesis`) earn their keep for parsers, validators, serializers.
 
@@ -145,6 +160,7 @@ See `references/pydantic.md` for model factory patterns.
 | `def f(x):` (no annotations)                   | Full signature with types                         |
 | `-> dict[str, Any]` / `-> list[dict]`          | `TypedDict` or pydantic model                     |
 | `def helper(model: M, ...)` in a utils module  | A method on `M`                                   |
+| `def _make_user(...) -> User` in a test file   | `@pytest.fixture` returning the factory           |
 | Three-arm `if isinstance(x, A): ... elif ...`  | `match x: case A(): ...`                          |
 | `asyncio.gather(*tasks)` for fan-out           | `async with asyncio.TaskGroup() as tg:`           |
 | `asyncio.create_task(f())` then forgetting it  | `tg.create_task(f())` inside a task group         |
