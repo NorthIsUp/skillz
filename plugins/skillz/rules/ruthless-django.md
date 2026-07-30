@@ -1,6 +1,29 @@
 ---
 description: Django architecture — fat models and managers, thin handlers, layered validation, django-ninja schemas, ORM query discipline
-alwaysApply: true
+paths:
+  - "**/apps/*.py"
+  - "**/apps/**/*.py"
+  - "**/models.py"
+  - "**/models/*.py"
+  - "**/managers.py"
+  - "**/querysets.py"
+  - "**/services.py"
+  - "**/selectors.py"
+  - "**/schemas.py"
+  - "**/serializers.py"
+  - "**/api.py"
+  - "**/apis.py"
+  - "**/views.py"
+  - "**/admin.py"
+  - "**/tasks.py"
+  - "**/signals.py"
+  - "**/urls.py"
+  - "**/migrations/*.py"
+  - "**/settings.py"
+  - "**/settings/*.py"
+  - "**/manage.py"
+  - "**/asgi.py"
+  - "**/wsgi.py"
 ---
 
 # Ruthless Django
@@ -20,7 +43,7 @@ project/
     schemas.py
     services.py                             # cross-model orchestration; often absent
     tests/
-  common/{models,permissions,pagination}.py
+  common/{models,permissions}.py
 ```
 
 **Code goes where its dependencies are**, not by read-vs-write. Three
@@ -46,15 +69,15 @@ Behavior lives with the data. A model owns the logic about one instance;
 its manager owns the _query vocabulary_ for the set.
 
 ```python
-class OrderQuerySet(QuerySet[Order]):
+class OrderQuerySet(models.QuerySet[Order]):
     def open(self) -> Self:
         return self.filter(status=Order.Status.OPEN)
 
     def with_totals(self) -> Self:
         return self.annotate(total=Sum(F("items__price") * F("items__quantity")))
 
-class Order(Model):
-    objects = OrderManager.from_queryset(OrderQuerySet)()
+class Order(models.Model):
+    objects = models.Manager.from_queryset(OrderQuerySet)()
 
     @cached_property
     def total(self) -> Decimal: ...
@@ -110,7 +133,7 @@ really is one model is a healthy outcome, not a missing file.
 Three layers, innermost first — push each rule as far down as it goes.
 
 ```python
-class Course(BaseModel):
+class Course(models.Model):
     start_date = models.DateField()
     end_date = models.DateField()
 
@@ -214,7 +237,7 @@ stale entries fail loudly instead of half-loading into a model that no
 longer matches.
 
 ```python
-class CachedTotals(BaseModel):
+class CachedTotals(pydantic.BaseModel):
     v: Literal[1] = 1
     order_id: int
     total: Decimal
