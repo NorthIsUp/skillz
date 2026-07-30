@@ -1,29 +1,7 @@
 ---
 description: Django architecture — fat models and managers, thin handlers, layered validation, django-ninja schemas, ORM query discipline
 paths:
-  - "**/apps/*.py"
-  - "**/apps/**/*.py"
-  - "**/models.py"
-  - "**/models/*.py"
-  - "**/managers.py"
-  - "**/querysets.py"
-  - "**/services.py"
-  - "**/selectors.py"
-  - "**/schemas.py"
-  - "**/serializers.py"
-  - "**/api.py"
-  - "**/apis.py"
-  - "**/views.py"
-  - "**/admin.py"
-  - "**/tasks.py"
-  - "**/signals.py"
-  - "**/urls.py"
-  - "**/migrations/*.py"
-  - "**/settings.py"
-  - "**/settings/*.py"
-  - "**/manage.py"
-  - "**/asgi.py"
-  - "**/wsgi.py"
+  - "**/*.py"
 ---
 
 # Ruthless Django
