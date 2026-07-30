@@ -206,6 +206,26 @@ A schema is the wire contract, nothing more. Business rules ride on the
 model or the service; validators enforce shape (ranges, formats, field
 interdependence), not policy that needs a database read.
 
+## Cache and queue payloads
+
+Cache the schema, never the model instance. A cached value is a pydantic
+model dumped to JSON, carrying a version you bump on a breaking change so
+stale entries fail loudly instead of half-loading into a model that no
+longer matches.
+
+```python
+class CachedTotals(BaseModel):
+    v: Literal[1] = 1
+    order_id: int
+    total: Decimal
+
+await cache.aset(key, CachedTotals(...).model_dump_json(), timeout=300)
+```
+
+Celery tasks take ids and primitives, never model instances — refetch in
+the task, so it acts on current rows rather than a snapshot from whenever
+it was queued.
+
 ## Signals
 
 Cross-app side effects only, and the handler dispatches rather than works:
@@ -238,6 +258,9 @@ signal is untraceable at 3am.
 | Missing `select_related` / `prefetch_related`  | The right one, plus `assertNumQueries`                 |
 | Signal for same-app logic                      | Direct service call                                    |
 | Secret in `settings.py`                        | Environment variable read in `settings/base.py`        |
+| `cache.set(key, model_instance)`               | A versioned pydantic schema, `.model_dump_json()`      |
+| Pickled blob in a `BinaryField`                | A `JSONField` holding a versioned schema               |
+| Model instance as a Celery task argument       | Its pk; refetch in the task                            |
 | Raw SQL with f-string interpolation            | Parameterized `.raw()` / `cursor.execute(sql, params)` |
 | DRF serializer or `ViewSet`                    | `ninja.Schema` / `ModelSchema` + a `Router`            |
 | `SerializerMethodField`, `to_representation`   | A pydantic computed field or model property            |

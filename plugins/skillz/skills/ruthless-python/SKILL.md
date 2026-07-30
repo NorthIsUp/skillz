@@ -84,6 +84,20 @@ to cases the rule doesn't literally cover.
 - **Rule 8 — Succinct, low-magic.** Prefer comprehensions, model declarations, and stdlib iter tools over hand-rolled loops. Avoid metaclasses, dynamic class creation, monkeypatching, clever decorators. Some magic (descriptors, `__init_subclass__`, pydantic validators) earns its keep — pick it deliberately, never by default.
 - **Rule 9 — Tests are pytest; async tests use anyio.** No bare `asyncio` in tests, no `unittest`. Use `@pytest.mark.anyio` (or set `anyio_mode = "auto"`). Don't mock pydantic models — construct them; that's what they're for. Don't mock async iterators — use `asyncstdlib`. See "Testing" below.
 
+- **Rule 10 — Never `pickle`. Serialize through pydantic.** `pickle.loads` on anything you didn't produce is arbitrary code execution, and even when the input is trusted the format is unversioned: the blob embeds a class path and an instance `__dict__`, so renaming the class, moving the module, or adding a field breaks every stored value with no migration path and no error until load. A pydantic model gives you a validated schema, JSON on the wire, and a place to put a version tag:
+
+  ```python
+  class CachedProfile(BaseModel):
+      v: Literal[2] = 2          # bump on a breaking change; old readers reject loudly
+      user_id: int
+      display_name: str
+
+  blob = profile.model_dump_json()
+  profile = CachedProfile.model_validate_json(blob)   # rejects a v1 blob instead of silently decoding it wrong
+  ```
+
+  Same rule for the calls that pickle without saying so: `shelve`, `dill`, `joblib`, `pandas.to_pickle`, `numpy.load(allow_pickle=True)`, `torch.save` of a whole model. Cross-process handoff is JSON or a real format (Parquet, Arrow, safetensors). What a framework does inside its own storage layer isn't your problem — this is about the serialization _you_ write.
+
 ## Library defaults
 
 Reach for these first; don't introduce alternatives without a reason:
@@ -145,6 +159,10 @@ See `references/pydantic.md` for model factory patterns.
 | `**kwargs: Any` for config                     | A `BaseModel` for config; pass the model          |
 | `@property` doing real I/O                     | Make it an explicit `async def` method            |
 | `cast(T, x)` to silence pyright                | Fix the type at the source, or `TypeGuard`        |
+| `pickle` / `shelve` / `dill` for persistence   | `model_dump_json()` + `model_validate_json()`     |
+| `pandas.to_pickle`, `numpy` `allow_pickle`     | Parquet / Arrow / `npz` without pickle            |
+| A model instance as a cache or queue payload   | A versioned pydantic schema, dumped to JSON       |
+| Stored blob with no version field              | A `v: Literal[N]` on the model                    |
 
 ## Reviewing Python (PRs, diffs)
 
