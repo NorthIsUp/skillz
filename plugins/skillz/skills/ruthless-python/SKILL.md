@@ -68,7 +68,19 @@ to cases the rule doesn't literally cover.
 
   ```
 
-- **Rule 7 — Async-native. `TaskGroup` is the default concurrency primitive.** Don't reach for `asyncio.gather`, raw `create_task`, threads, or `concurrent.futures` unless you have a specific reason noted in a comment. Prefer `anyio` over `asyncio` for new code. See `references/async.md`.
+- **Rule 7 — Async-native. I/O is `async` wherever the library allows it.** Every network call, file read, subprocess, sleep, and DB query is awaited; a sync I/O call in async code is a bug unless a comment names why no async path exists. `TaskGroup` is the default concurrency primitive — never `asyncio.gather`, raw `create_task`, threads, or `concurrent.futures` without a specific reason in a comment.
+
+  **Reach in this order, and stop at the first rung that covers it:**
+
+  1. **Native structured concurrency** — `asyncio.TaskGroup`, `ExceptionGroup` / `except*`, `asyncio.timeout`. Stdlib, no dependency, and what every reader already knows.
+  2. **`asyncstdlib`** (`import asyncstdlib as a`) — async `itertools` / `functools` / builtins: `a.map`, `a.filter`, `a.zip`, `a.islice`, `a.cached_property`, `a.lru_cache`. Reads exactly like its sync counterpart, which is the point.
+  3. **`anyio`** — when you need what the stdlib lacks: memory object streams, `to_thread` / `from_thread`, cancel-scope nuance, or trio compatibility.
+  4. **The rest of `asyncio`** — primitives with no equivalent above (`Queue`, `Semaphore`, `Event`, loop internals).
+
+  Two rungs both work → take the higher one. See `references/async.md`.
+
+  **Paths are `anyio.Path`.** There's no stdlib async `pathlib`, so this is rung 3 by default, not by exception. Same API as `pathlib.Path`, awaitable: `await p.read_text()`, `await p.exists()`, `async for child in p.iterdir()`. Plain `pathlib.Path` is fine for pure path algebra that never touches the disk (`/` joins, `.name`, `.suffix`, `.parent`) and in sync-only code; the moment a path is read, written, stat'd, or globbed from async code, it's `anyio.Path`.
+
 - **Rule 8 — Succinct, low-magic.** Prefer comprehensions, model declarations, and stdlib iter tools over hand-rolled loops. Avoid metaclasses, dynamic class creation, monkeypatching, clever decorators. Some magic (descriptors, `__init_subclass__`, pydantic validators) earns its keep — pick it deliberately, never by default.
 - **Rule 9 — Tests are pytest; async tests use anyio.** No bare `asyncio` in tests, no `unittest`. Use `@pytest.mark.anyio` (or set `anyio_mode = "auto"`). Don't mock pydantic models — construct them; that's what they're for. Don't mock async iterators — use `asyncstdlib`. See "Testing" below.
 
@@ -80,8 +92,8 @@ Reach for these first; don't introduce alternatives without a reason:
 - `pydantic-ai` — LLM agents, tool calls, structured outputs.
 - `fastapi` — HTTP API. Async-native, pydantic-native. Routes take and return pydantic models; the OpenAPI schema in the docs _is_ the schema in the code. Pair with the Tortoise-derived schemas below — never hand-write a parallel `BaseModel` for an endpoint that returns a DB row. See `references/fastapi.md`.
 - `tortoise-orm` — async ORM. Use `tortoise.contrib.pydantic.pydantic_model_creator` to derive pydantic schemas straight from the ORM models, so the same source of truth covers both the DB row and the API/tool schema. See `references/pydantic.md`.
-- `anyio` — structured concurrency, cancellation, timeouts, streams. Works under asyncio _and_ trio. Prefer over `asyncio` directly.
-- `asyncstdlib` — async equivalents of `itertools` / `functools` / `builtins` (`a.map`, `a.filter`, `a.zip`, `a.cached_property`).
+- `asyncstdlib` (as `a`) — async equivalents of `itertools` / `functools` / `builtins` (`a.map`, `a.filter`, `a.zip`, `a.cached_property`). Rung 2 of Rule 7.
+- `anyio` — memory object streams, thread bridging, cancel scopes, `anyio.Path`, trio compatibility. Rung 3: what the stdlib doesn't cover.
 - `pytest` (+ anyio's pytest plugin) — tests.
 
 Before adding a new dependency, check whether `anyio` or `asyncstdlib` already covers it.
@@ -114,21 +126,25 @@ See `references/pydantic.md` for model factory patterns.
 
 ## Anti-patterns (reject on sight)
 
-| Smell                                         | Replace with                                     |
-| --------------------------------------------- | ------------------------------------------------ |
-| `def f(x):` (no annotations)                  | Full signature with types                        |
-| `-> dict[str, Any]` / `-> list[dict]`         | `TypedDict` or pydantic model                    |
-| `def helper(model: M, ...)` in a utils module | A method on `M`                                  |
-| Three-arm `if isinstance(x, A): ... elif ...` | `match x: case A(): ...`                         |
-| `asyncio.gather(*tasks)` for fan-out          | `async with anyio.create_task_group() as tg:`    |
-| `asyncio.create_task(f())` then forgetting it | `tg.start_soon(f)` inside a task group           |
-| `threading.Thread` for I/O concurrency        | async + task group                               |
-| `time.sleep` in async code                    | `await anyio.sleep(...)`                         |
-| `for x in await collect_all(): ...`           | `async for x in stream: ...` (via `asyncstdlib`) |
-| Plain dict as a data carrier across modules   | pydantic model (or `TypedDict` if internal-only) |
-| `**kwargs: Any` for config                    | A `BaseModel` for config; pass the model         |
-| `@property` doing real I/O                    | Make it an explicit `async def` method           |
-| `cast(T, x)` to silence pyright               | Fix the type at the source, or `TypeGuard`       |
+| Smell                                          | Replace with                                      |
+| ---------------------------------------------- | ------------------------------------------------- |
+| `def f(x):` (no annotations)                   | Full signature with types                         |
+| `-> dict[str, Any]` / `-> list[dict]`          | `TypedDict` or pydantic model                     |
+| `def helper(model: M, ...)` in a utils module  | A method on `M`                                   |
+| Three-arm `if isinstance(x, A): ... elif ...`  | `match x: case A(): ...`                          |
+| `asyncio.gather(*tasks)` for fan-out           | `async with asyncio.TaskGroup() as tg:`           |
+| `asyncio.create_task(f())` then forgetting it  | `tg.create_task(f())` inside a task group         |
+| `asyncio.wait_for(...)` for a deadline         | `async with asyncio.timeout(...):`                |
+| `threading.Thread` for I/O concurrency         | async + task group                                |
+| `time.sleep` in async code                     | `await asyncio.sleep(...)`                        |
+| `open(...)` / `Path.read_text()` in async code | `await anyio.Path(p).read_text()`                 |
+| `os.path` / `pathlib` for disk access          | `anyio.Path` (plain `Path` for path algebra only) |
+| Hand-rolled `async for` accumulation loop      | `import asyncstdlib as a` → `a.map` / `a.filter`  |
+| `for x in await collect_all(): ...`            | `async for x in stream: ...` (via `asyncstdlib`)  |
+| Plain dict as a data carrier across modules    | pydantic model (or `TypedDict` if internal-only)  |
+| `**kwargs: Any` for config                     | A `BaseModel` for config; pass the model          |
+| `@property` doing real I/O                     | Make it an explicit `async def` method            |
+| `cast(T, x)` to silence pyright                | Fix the type at the source, or `TypeGuard`        |
 
 ## Reviewing Python (PRs, diffs)
 
@@ -137,6 +153,6 @@ Walk the diff against the bar. For each violation, quote the line and propose th
 ## Reference files (load on demand)
 
 - `references/typing.md` — eliminating `Any`, when each container type fits, `Protocol` vs `ABC`, generics, `Self`, `TypeGuard`, `assert_never` for exhaustiveness.
-- `references/async.md` — `TaskGroup` patterns, cancellation, timeouts, streams, `asyncstdlib` recipes, `anyio` over `asyncio`.
+- `references/async.md` — the four-rung library ladder, `TaskGroup` patterns, `asyncio.timeout`, `asyncstdlib` recipes, `anyio.Path`, memory streams.
 - `references/pydantic.md` — model design, validators, settings, discriminated unions, model factories for tests, `pydantic-ai` agent shape, Tortoise ORM + `pydantic_model_creator`.
 - `references/fastapi.md` — router and endpoint shape, dependency injection (`Depends`), lifespan + Tortoise wiring, error responses, testing with `httpx.AsyncClient`.
