@@ -1,6 +1,8 @@
 ---
 description: Django architecture — fat models and managers, thin handlers, layered validation, django-ninja schemas, ORM query discipline
 paths:
+  - "**/apps/*.py"
+  - "**/apps/**/*.py"
   - "**/models.py"
   - "**/models/*.py"
   - "**/managers.py"
