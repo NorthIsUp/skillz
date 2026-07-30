@@ -20,60 +20,59 @@ Structured concurrency. Three guarantees you get for free:
 errors get hidden in the returned list, tasks outlive failures, and
 cancellation is on you.
 
+## Which library
+
+Stop at the first rung that covers the job (Rule 7):
+
+1. Native — `asyncio.TaskGroup`, `ExceptionGroup` / `except*`, `asyncio.timeout`.
+2. `asyncstdlib as a` — async `itertools` / `functools` / builtins.
+3. `anyio` — memory streams, `to_thread` / `from_thread`, cancel scopes, `anyio.Path`, trio support.
+4. Remaining `asyncio` primitives — `Queue`, `Semaphore`, `Event`.
+
+The examples below use the highest rung that does the job; the `anyio`
+ones are there because the stdlib has no equivalent, not by preference.
+
 ## The canonical pattern
 
 ```python
-import anyio
-
 async def fetch_all(urls: list[str]) -> list[Response]:
-    results: list[Response] = []
+    async with asyncio.TaskGroup() as tg:
+        tasks = [tg.create_task(client.get(url)) for url in urls]
 
-    async def fetch(url: str) -> None:
-        results.append(await client.get(url))
-
-    async with anyio.create_task_group() as tg:
-        for url in urls:
-            tg.start_soon(fetch, url)
-
-    return results
+    return [t.result() for t in tasks]
 ```
 
 Notes:
 
-- `tg.start_soon(fn, arg1, arg2, ...)` — args are passed positionally,
-  not as a coroutine. Don't write `tg.start_soon(fn(arg))`.
-- Mutating a shared list from concurrent tasks is fine _because_ the
-  asyncio scheduler is cooperative — but prefer collecting into per-
-  task locals and assembling at the end when results are ordered.
-
-For ordered results, use a memory stream or pre-sized list:
+- `tg.create_task(coro())` takes a coroutine — unlike anyio's
+  `tg.start_soon(fn, *args)`, which takes the function and its args.
+- Results are ordered because the task list is. Read `.result()` after
+  the block exits, never inside it.
+- A failing task cancels its siblings and surfaces as an
+  `ExceptionGroup`; handle it with `except*`.
 
 ```python
-async def fetch_all(urls: list[str]) -> list[Response]:
-    results: list[Response | None] = [None] * len(urls)
-
-    async def fetch(i: int, url: str) -> None:
-        results[i] = await client.get(url)
-
-    async with anyio.create_task_group() as tg:
-        for i, url in enumerate(urls):
-            tg.start_soon(fetch, i, url)
-
-    return [r for r in results if r is not None]
+try:
+    await fetch_all(urls)
+except* httpx.HTTPError as eg:
+    log.warning("%d fetches failed", len(eg.exceptions))
 ```
 
 ## Cancellation & timeouts
 
 ```python
-with anyio.move_on_after(5.0):
+async with asyncio.timeout(5.0):       # raises TimeoutError on expiry
     await slow_thing()
 
-with anyio.fail_after(5.0):  # raises TimeoutError on expiry
-    await slow_thing()
+with contextlib.suppress(TimeoutError):  # the "move on" form
+    async with asyncio.timeout(5.0):
+        await slow_thing()
 ```
 
-Cancellation propagates _into_ task groups. A `fail_after` around a
-task group cancels every child when it fires.
+Cancellation propagates _into_ task groups: a timeout around a task
+group cancels every child when it fires. Reach for `anyio`'s cancel
+scopes only when you need a shielded scope or a deadline you reset
+mid-flight.
 
 When writing code that _handles_ cancellation:
 
@@ -112,6 +111,24 @@ Recipes:
 
 `asyncstdlib` handles cleanup of async iterators correctly — hand-
 rolled `async for` + early `break` can leak.
+
+## Filesystem: `anyio.Path`
+
+```python
+p = anyio.Path(root) / "config.toml"
+
+if await p.exists():
+    text = await p.read_text()
+
+async for entry in (anyio.Path(root) / "logs").iterdir():
+    ...
+```
+
+Same API as `pathlib.Path`, awaitable where it hits the disk. Keep
+plain `pathlib.Path` for path algebra that never touches the
+filesystem — joins, `.name`, `.suffix`, `.parent`, `.relative_to` — and
+convert at the point of I/O. `open()`, `Path.read_text()`, `os.listdir`,
+and `glob` in async code all block the loop.
 
 ## Streams (anyio memory channels)
 
@@ -160,9 +177,11 @@ line above explaining why a task group doesn't fit.
 - **Forgetting `await`.** Pyright catches most; configure
   `reportUnusedCoroutine = "error"`.
 - **`time.sleep` in async code.** Blocks the loop. Use
-  `await anyio.sleep(...)`.
+  `await asyncio.sleep(...)`.
 - **`requests` / sync HTTP in async code.** Blocks the loop. Use
   `httpx.AsyncClient`.
+- **Sync file I/O in async code.** `open()`, `Path.read_text()`,
+  `glob`, `os.stat` all block. Use `anyio.Path`.
 - **`gather(..., return_exceptions=True)` "to be safe".** This
   silences errors. Use a task group; if you genuinely want
   per-task results-or-errors, model it explicitly with
