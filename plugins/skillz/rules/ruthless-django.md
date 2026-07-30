@@ -1,5 +1,5 @@
 ---
-description: Django architecture — thin views, services/selectors, django-ninja schemas, ORM query discipline
+description: Django architecture — fat models and managers, thin handlers, layered validation, django-ninja schemas, ORM query discipline
 alwaysApply: true
 ---
 
@@ -13,19 +13,37 @@ Django-ninja is the API layer. Not DRF — no `ModelSerializer`, no
 
 ```text
 project/
-  config/settings/{base,local,production}.py, urls.py, wsgi.py
-  apps/users/{models,schemas,api,services,selectors,urls}.py, tests/
+  config/settings/{base,local,production}.py, urls.py, asgi.py
+  apps/orders/
+    models/{__init__,order,line_item}.py   # each model + its QuerySet/Manager together
+    api.py                                  # ninja Router
+    schemas.py
+    services.py                             # cross-model orchestration; often absent
+    tests/
   common/{models,permissions,pagination}.py
 ```
 
-Writes go in `services.py`, reads in `selectors.py`. Views and route
-handlers stay thin — a handler that does more than call one service or
-selector and return its result has business logic in the wrong file.
+**Code goes where its dependencies are**, not by read-vs-write. Three
+homes, and the question that picks one:
+
+| Depends on                                    | Lives on              |
+| --------------------------------------------- | --------------------- |
+| One instance's own fields                     | model method/property |
+| A query shape over one model                  | queryset / manager    |
+| Multiple models, external calls, transactions | `services.py`         |
+
+Reads and writes both occur at all three levels, which is why there's no
+`selectors.py`: a read over one model is a queryset method, and a read
+spanning models is a service. A selector module is a queryset method with
+the chaining removed.
+
+Route handlers stay thin — a handler that does more than call one of the
+three and return its result has business logic in the wrong file.
 
 ## Fat models, fat managers
 
 Behavior lives with the data. A model owns the logic about one instance;
-its manager owns the logic about the set.
+its manager owns the _query vocabulary_ for the set.
 
 ```python
 class OrderQuerySet(QuerySet[Order]):
@@ -35,12 +53,8 @@ class OrderQuerySet(QuerySet[Order]):
     def with_totals(self) -> Self:
         return self.annotate(total=Sum(F("items__price") * F("items__quantity")))
 
-class OrderManager(Manager.from_queryset(OrderQuerySet)):
-    async def place(self, *, customer: Customer, items: list[LineItem]) -> Order:
-        """Create the order, reserve stock, and emit confirmation — one transaction."""
-
 class Order(Model):
-    objects = OrderManager()
+    objects = OrderManager.from_queryset(OrderQuerySet)()
 
     @cached_property
     def total(self) -> Decimal: ...
@@ -52,9 +66,17 @@ class Order(Model):
     async def cancel(self, *, by: User, reason: str) -> None: ...
 ```
 
-Chainable querysets on the manager, not `Order.objects.filter(status=...)`
-repeated across selectors — the second copy of a filter is a queryset
-method.
+Chainable querysets, not `Order.objects.filter(status=...)` copied across
+call sites — the second copy of a filter is a queryset method.
+`Order.objects.open().with_totals()` composes; an `order_list(filters=...)`
+function does not.
+
+**Managers get fat with queries, never with flows.** A method that
+reserves stock, charges a card, and emails a receipt is not an `Order`
+method just because it happens to create one — it touches three models
+and an external service, and putting it on `OrderManager` picks an owner
+by accident. That's `services.py`. The tell: the method's body names a
+model the manager doesn't manage.
 
 **Async-first.** Anything touching the database is `async def` — `aget`,
 `acreate`, `asave`, `adelete`, `aupdate_or_create`, `async for` over a
@@ -70,16 +92,53 @@ stop and think: an instance deliberately held across an
 `await`-and-mutate cycle, or a long-lived object in a management command
 or worker loop — there, cache what the DB can't change under you.
 
-**`model_id` as the first parameter is the tell.** `def cancel_order(order_id,
-...)` is a manager method (`Order.objects.cancel(pk, ...)`) or a classmethod;
-`def cancel(order: Order, ...)` is a method on `Order`. Same rule as
-ruthless-python Rule 5, one level down: if it takes the model, it belongs
-on the model.
+**One `model_id` as the first parameter is the tell.** `def
+cancel_order(order_id, ...)` is a manager method or a classmethod; `def
+cancel(order: Order, ...)` is a method on `Order`. Same rule as
+ruthless-python Rule 5, one level down. But count the models first — a
+function taking `order_id` _and_ `warehouse_id` is correctly a service;
+the heuristic only fires when a single model owns every argument.
 
-Services and selectors coordinate — across models, across apps, across
-transactions and external calls. They are not a place to keep logic that
-concerns a single model; that's the model's job, and a `services.py` full
-of one-model functions is a fat model turned inside out.
+Services own what no single model can: work spanning models or apps, an
+external call, a `transaction.atomic` block, anything the domain names
+but the schema doesn't. A `services.py` full of one-model functions is a
+fat model turned inside out; a `services.py` that's empty because the app
+really is one model is a healthy outcome, not a missing file.
+
+## Validation
+
+Three layers, innermost first — push each rule as far down as it goes.
+
+```python
+class Course(BaseModel):
+    start_date = models.DateField()
+    end_date = models.DateField()
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                name="start_date_before_end_date",
+                check=Q(start_date__lt=F("end_date")),
+            )
+        ]
+
+    def clean(self) -> None:
+        if self.start_date >= self.end_date:
+            raise ValidationError("end_date must be after start_date")
+```
+
+1. **`Meta.constraints`** — the database enforces it on every write path,
+   including bulk operations, `update()`, migrations, and psql. A rule
+   that can be a `CheckConstraint` or `UniqueConstraint` is one.
+2. **`clean()`** — multi-field checks over the instance's own fields, when
+   the rule is simple and needs no query. Since Django 4.1 `full_clean()`
+   also runs constraints, so you get one `ValidationError` for both.
+3. **The service** — anything spanning relations, fetching data, or
+   calling out. Call `full_clean()` before `save()`; it's the only thing
+   that runs layer 2.
+
+Schema validators are a fourth, outermost layer, and they belong to the
+wire contract, not the domain — see below.
 
 ## ORM
 
@@ -167,7 +226,11 @@ signal is untraceable at 3am.
 | ---------------------------------------------- | ------------------------------------------------------ |
 | Logic in a view, handler, or schema            | A model method, manager method, or service             |
 | `def f(order_id, ...)` in a service module     | `Order.objects.f(...)` or an `Order` method            |
-| The same `.filter(...)` in two selectors       | A queryset method on the manager                       |
+| Manager method touching a model it doesn't own | A service                                              |
+| The same `.filter(...)` at two call sites      | A queryset method on the manager                       |
+| Business logic in `save()`                     | A service — bulk paths skip `save()` entirely          |
+| Validation only in `clean()`                   | A `CheckConstraint` too, if the DB can express it      |
+| `.save()` in a service with no `full_clean()`  | `obj.full_clean()` first — it's what runs `clean()`    |
 | Sync `.get()` / `.save()` in a request path    | `await obj.arefresh_from_db()`, `aget`, `asave`        |
 | `sync_to_async` with no comment justifying it  | The `a`-prefixed ORM method                            |
 | Recomputing a derived value twice per instance | `cached_property` (or the asyncstdlib one)             |
