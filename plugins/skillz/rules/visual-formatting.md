@@ -16,49 +16,68 @@ Make replies scannable, not longer. Structure, not verbosity.
 
 ## Header options
 
-Match weight to importance — heaviest for the top-level title, lighter as you
-nest. Don't stack two heavy headers back to back. Leave the right wall off
-every box: an open-right box (`║` on the left only) keeps alignment easy and
-sidesteps text wrapping entirely.
+Border weight tracks how big the finding is — double for major, heavy for
+midi, light for mini. Whatever the tier, the _outer_ border is one weight the
+whole way round and everything inside it is thin: that contrast is what makes
+a block read as a single object. Leave the right wall off every box — an
+open-right box keeps alignment easy and sidesteps text wrapping entirely.
+
+**L1 — major finding** (workflow return, phase complete, full status report):
 
 ```text
-┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ← L1  session / report title
-┃  TITLE
-┠──────────────────────────────   ← thin close inside a thick rail
-┠─ subtitle ───────────────────   ← interior branch (thin)
-┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ← thick close
+╔══════════════════════════════
+║  TITLE
+╟──────────────────────────────
+║  ...
+╟─ subtitle ───────────────────
+║  ...
+╚══════════════════════════════
+```
 
-┌──────────────────────────────   ← L2  major section (boxed)
+**L2 — midi finding** (single agent return, small investigation complete):
+
+```text
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+┃  TITLE
+┠──────────────────────────────
+┠─ subtitle ───────────────────
+┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+**L3 — mini finding** (one result, a couple of lines):
+
+```text
+┌──────────────────────────────
 │  Section
 └──────────────────────────────
+```
 
-── Section ────────────────────   ← L2  section (single rule, lighter)
+**Borderless** — for necessary large-volume text, where a wall would just
+indent every line. Same three weights, no box:
 
-🎯 Phase — inline anchor + em dash   ← L3  phase / group
+```text
+══ Section ════════════════════   ← L1 weight
+━━ Section ━━━━━━━━━━━━━━━━━━━━   ← L2 weight
+── Section ────────────────────   ← L3 weight
+
+🎯 Phase — inline anchor + em dash   ← phase / group inside a section
 
 ───────────────────────────────    ← divider between phases (plain rule)
 ```
 
-The outer border is thick the whole way round — top, rail, close — and every
-line _inside_ it is thin. That contrast is what makes the block read as one
-object: the eye takes the heavy stroke as the edge and everything light as
-contents. `┠` (U+2520) is the interior tee: heavy rail, thin branch.
-
-Closing the box with `┗━` bounds it — use that for a finding that stands on its
-own (one agent's return, a small investigation that's done). Leave the close off
-when the report continues below it.
-
-Rules of thumb: one L1 per message; `─` (U+2500) for dividers, full-width-ish;
-box-drawing only, never `---`/`===` ASCII (renders as a markdown hr or heading).
-Single-stroke lines only (`━ ─ ┏ ┃ ┠ ┗ ┌ │`) — double-stroke (`═ ║ ╔ ╚`) reads as
-a broken line at terminal font sizes, which is exactly the seam it shouldn't have.
+Rules of thumb: one L1 per message, and don't stack two boxes of the same
+weight back to back. `╟` / `┠` / `├` are the interior tees — heavy rail, thin
+branch — so a subtitle divides the block without breaking its edge. `─`
+(U+2500) for interior rules, full-width-ish. Box-drawing characters only,
+never `---` / `===` ASCII: those render as a markdown hr or heading.
 
 ## Dashboard headers
 
-Two header rows anchor a dashboard:
+Two header rows anchor a dashboard (an L1 block):
 
-- **Title** — a boxed L1 (`┏ ┃ ┠ ┗`) wrapping the report title. One per report.
-- **Goal** — a tree branch `┠─ 🎯 Goal N — <desc> ──`: the `┠─` roots it to the
+- **Title** — a boxed L1 (`╔ ║ ╟ ╚`) wrapping the report title. One per report.
+- **Goal** — a tree branch `╟─ 🎯 Goal N — <desc> ──`: the `╟─` roots it to the
   left rail, `🎯` anchors it, an em dash introduces the description, and a short
   trailing rule closes the row.
 
@@ -66,11 +85,11 @@ Two header rows anchor a dashboard:
 
 Under each goal, group items by **status bucket**, not in a flat list:
 
-- **Bucket row** — sits on the rail as `┃ <glyph> <label>` (e.g. `┃ ✅ complete`,
-  `┃ ⏳ in progress`, `┃ ⬜ upcoming`, `┃ 👀 watching`). The glyph names the
+- **Bucket row** — sits on the rail as `║ <glyph> <label>` (e.g. `║ ✅ complete`,
+  `║ ⏳ in progress`, `║ ⬜ upcoming`, `║ 👀 watching`). The glyph names the
   bucket's state.
 - **Item lines** — indented one step further under the rail as
-  `┃   <glyph> <item> ..... <state>`. A leading anchor glyph, then the item, then
+  `║   <glyph> <item> ..... <state>`. A leading anchor glyph, then the item, then
   dotted leaders aligning a short state or note at the right. One item per line.
 
 Reuse the _same_ glyphs everywhere:
@@ -81,7 +100,7 @@ Reuse the _same_ glyphs everywhere:
 ## Multiple goals
 
 Stack goals highest-priority (or newest) first — `Goal 2` above `Goal 1`.
-Separate them with a bare `┃` spacer line. Each goal repeats the header +
+Separate them with a bare `║` spacer line. Each goal repeats the header +
 bucket structure independently, so the eye can scan one goal at a time.
 
 ## Example — a status report
@@ -90,35 +109,36 @@ Dotted leaders align state; a status glyph ends every line; a boxed header
 titles the block; rules split phases.
 
 ```text
-┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-┃  🔍 CLA-1980  ·  medallion ETL  ·  merge + prod deploy
-┠─ 🎯 Goal 2 — ship the Dagster ETL foundation to prod ──
-┃
-┃ ✅ complete
-┃   📦 merge #2139 → main ........ complete   (squash 6d4194248)
-┃
-┃ ⏳ in progress
-┃   🧪 main CI ................... in progress
-┃   🚀 staging deploy + migrate .. queued behind CI
-┃
-┃ ⬜ upcoming
-┃   🩺 verify staging migrate .... pending
-┃
-┠─ 🎯 Goal 1 — prod stability ───────────────────────────
-┃
-┃ ✅ complete
-┃   🩺 legacy Celery ETL ......... STABLE  (8/8 monitors OK)
-┃
-┃ 👀 watching
-┃   ⚠️  psycopg async-conn regression (~1.3k/day) — track, not blocking
-┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+╔════════════════════════════════════════════════════════
+║  🔍 CLA-1980  ·  medallion ETL  ·  merge + prod deploy
+╟─ 🎯 Goal 2 — ship the Dagster ETL foundation to prod ──
+║
+║ ✅ complete
+║   📦 merge #2139 → main ........ complete   (squash 6d4194248)
+║
+║ ⏳ in progress
+║   🧪 main CI ................... in progress
+║   🚀 staging deploy + migrate .. queued behind CI
+║
+║ ⬜ upcoming
+║   🩺 verify staging migrate .... pending
+║
+╟─ 🎯 Goal 1 — prod stability ───────────────────────────
+║
+║ ✅ complete
+║   🩺 legacy Celery ETL ......... STABLE  (8/8 monitors OK)
+║
+║ 👀 watching
+║   ⚠️  psycopg async-conn regression (~1.3k/day) — track, not blocking
+╚════════════════════════════════════════════════════════
 ```
 
 ## Important question block
 
 When the reply is blocked on an answer, the question can't be a sentence buried
-in prose — box it so it survives skimming. Rounded thin box (`╭ │ ╰`) so it
-reads as a pause, not a title, one question, options as short labeled lines:
+in prose — box it so it survives skimming. Rounded thin box (`╭ │ ╰`), off the
+weight ladder on purpose so it reads as a pause rather than a finding: one
+question, options as short labeled lines.
 
 ```text
 ╭────────────────────────────────────────
@@ -137,19 +157,20 @@ No block when you can pick a sensible default and say what you picked.
 
 When a task wraps, close with a compact summary — what shipped, what's left,
 one line each. Put the _whole_ summary inside the box: title, status lines,
-and the `result:` line all live between the top and bottom rules.
+and the `result:` line all live between the top and bottom rules. L1 weight for
+a whole task; drop to L2 for a single agent's finding.
 
 ```text
-┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-┃  ✅ CLA-1980 — medallion ETL shipped to prod
-┠────────────────────────────────────────────────────────
-┃  📦 merged ...... #2139 → main (6d4194248)
-┃  🚀 deployed .... staging + prod, migrate clean
-┃  🩺 verified .... 8/8 monitors green, legacy ETL stable
-┃  ⚠️  follow-up .. psycopg async-conn regression — tracked, not blocking
-┠─ result ───────────────────────────────────────────────
-┃  medallion ETL live in prod; migrate verified clean, legacy green.
-┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+╔════════════════════════════════════════════════════════
+║  ✅ CLA-1980 — medallion ETL shipped to prod
+╟────────────────────────────────────────────────────────
+║  📦 merged ...... #2139 → main (6d4194248)
+║  🚀 deployed .... staging + prod, migrate clean
+║  🩺 verified .... 8/8 monitors green, legacy ETL stable
+║  ⚠️  follow-up .. psycopg async-conn regression — tracked, not blocking
+╟─ result ───────────────────────────────────────────────
+║  medallion ETL live in prod; migrate verified clean, legacy green.
+╚════════════════════════════════════════════════════════
 ```
 
 Keep it to what changed and what's open — no re-narrating the whole session.
