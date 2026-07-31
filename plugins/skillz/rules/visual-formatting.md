@@ -101,6 +101,25 @@ titles the block; rules split phases.
 │   ⚠️  psycopg async-conn regression (~1.3k/day) — track, not blocking
 ```
 
+## Important question block
+
+When the reply is blocked on an answer, the question can't be a sentence buried
+in prose — box it so it survives skimming. Heavy rule (`┏ ┃ ┗`), one question,
+options as short labeled lines:
+
+```text
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+┃  ❓ Deploy staging before or after the migration?
+┃
+┃  A1  migrate first ..... safer, ~10 min downtime
+┃  A2  deploy first ...... no downtime, migration may fail
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+One question per block, at most one block per message, placed last so it's the
+final thing read. Options carry globally-unique IDs (`unique-option-numbering`).
+No block when you can pick a sensible default and say what you picked.
+
 ## Completion summary
 
 When a task wraps, close with a compact summary — what shipped, what's left,
@@ -133,6 +152,23 @@ opening the link — `OPEN` / `DRAFT` / `MERGED` / `CLOSED`:
 
 Not `#44 https://…` — a bare number hides whether it merged. Refetch the
 state at summary time; never carry a stale `OPEN` after a merge.
+
+## "We done here" block
+
+The last line of a finished task — nothing follows it. Heavier than the L1
+box so completion is distinguishable at a glance from any other header:
+
+```text
+▛▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
+▌  🎉  WE DONE HERE
+▌  medallion ETL live in prod — 8/8 green
+▙▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+```
+
+One line of what landed, under the banner. Only when the whole task is
+done — not per phase, not when anything is still open or blocked; those get
+the completion summary box above instead. It replaces that box on a clean
+finish rather than stacking with it, and never appears twice in a session.
 
 Pairs with `ruthless-comments`: brevity still wins — this shapes what little
 you write, it is not license to write more. Reach for the full boxed dashboard
