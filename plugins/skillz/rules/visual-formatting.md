@@ -22,9 +22,9 @@ every box: an open-right box (`║` on the left only) keeps alignment easy and
 sidesteps text wrapping entirely.
 
 ```text
-╔══════════════════════════════   ← L1  session / report title
-║  TITLE
-╚══════════════════════════════
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ← L1  session / report title
+┃  TITLE
+┞──────────────────────────────   ← thin close, rail runs on into the body
 
 ┌──────────────────────────────   ← L2  major section (boxed)
 │  Section
@@ -37,14 +37,20 @@ sidesteps text wrapping entirely.
 ───────────────────────────────    ← divider between phases (plain rule)
 ```
 
+L1 is heavy on top and thin on the bottom — weight where the title is, the
+close stepping down into the content instead of walling it off. `┞` (U+251E)
+is the step-down: heavy above, thin right and below.
+
 Rules of thumb: one L1 per message; `─` (U+2500) for dividers, full-width-ish;
 box-drawing only, never `---`/`===` ASCII (renders as a markdown hr or heading).
+Single-stroke lines only (`━ ─ ┏ ┃ ┞ ┌ │`) — double-stroke (`═ ║ ╔ ╚`) reads as
+a broken line at terminal font sizes, which is exactly the seam it shouldn't have.
 
 ## Dashboard headers
 
 Two header rows anchor a dashboard:
 
-- **Title** — a boxed L1 (`╔ ║ ╚`) wrapping the report title. One per report.
+- **Title** — a boxed L1 (`┏ ┃ ┞`) wrapping the report title. One per report.
 - **Goal** — a tree branch `├─ 🎯 Goal N — <desc> ──`: the `├─` roots it to the
   left rail, `🎯` anchors it, an em dash introduces the description, and a short
   trailing rule closes the row.
@@ -77,9 +83,9 @@ Dotted leaders align state; a status glyph ends every line; a boxed header
 titles the block; rules split phases.
 
 ```text
-╔════════════════════════════════════════════════════════
-║  CLA-1980  ·  medallion ETL  ·  merge + prod deploy
-╚════════════════════════════════════════════════════════
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+┃  🔍 CLA-1980  ·  medallion ETL  ·  merge + prod deploy
+┞────────────────────────────────────────────────────────
 ├─ 🎯 Goal 2 — ship the Dagster ETL foundation to prod ──
 │
 │ ✅ complete
@@ -104,16 +110,16 @@ titles the block; rules split phases.
 ## Important question block
 
 When the reply is blocked on an answer, the question can't be a sentence buried
-in prose — box it so it survives skimming. Heavy rule (`┏ ┃ ┗`), one question,
-options as short labeled lines:
+in prose — box it so it survives skimming. Rounded thin box (`╭ │ ╰`) so it
+reads as a pause, not a title, one question, options as short labeled lines:
 
 ```text
-┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-┃  ❓ Deploy staging before or after the migration?
-┃
-┃  A1  migrate first ..... safer, ~10 min downtime
-┃  A2  deploy first ...... no downtime, migration may fail
-┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+╭────────────────────────────────────────
+│  ❓ Deploy staging before or after the migration?
+│
+│  A1  migrate first ..... safer, ~10 min downtime
+│  A2  deploy first ...... no downtime, migration may fail
+╰────────────────────────────────────────
 ```
 
 One question per block, at most one block per message, placed last so it's the
@@ -127,16 +133,16 @@ one line each. Put the _whole_ summary inside the box: title, status lines,
 and the `result:` line all live between the top and bottom rules.
 
 ```text
-╔════════════════════════════════════════════════════════
-║  ✅ CLA-1980 — medallion ETL shipped to prod
-╟────────────────────────────────────────────────────────
-║  📦 merged ...... #2139 → main (6d4194248)
-║  🚀 deployed .... staging + prod, migrate clean
-║  🩺 verified .... 8/8 monitors green, legacy ETL stable
-║  ⚠️  follow-up .. psycopg async-conn regression — tracked, not blocking
-╟─ result ───────────────────────────────────────────────
-║  medallion ETL live in prod; migrate verified clean, legacy green.
-╚════════════════════════════════════════════════════════
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+┃  ✅ CLA-1980 — medallion ETL shipped to prod
+┠────────────────────────────────────────────────────────
+┃  📦 merged ...... #2139 → main (6d4194248)
+┃  🚀 deployed .... staging + prod, migrate clean
+┃  🩺 verified .... 8/8 monitors green, legacy ETL stable
+┃  ⚠️  follow-up .. psycopg async-conn regression — tracked, not blocking
+┠─ result ───────────────────────────────────────────────
+┃  medallion ETL live in prod; migrate verified clean, legacy green.
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
 Keep it to what changed and what's open — no re-narrating the whole session.

@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# Mirror the plugin's rules/ into ~/.claude/rules, and re-inject any rule that
+# changed since this session last looked.
+#
+# Runs on both SessionStart and UserPromptSubmit. No hook fires on
+# /reload-plugins, and InstructionsLoaded can't add context — a UserPromptSubmit
+# hook printing to stdout is the only way a rule edit reaches a live session.
+#
+# First run of a session only records hashes: SessionStart already loaded the
+# rules, so re-printing them would be duplicate context.
+set -uo pipefail
+
+src="${CLAUDE_PLUGIN_ROOT:?}/rules"
+dst="${HOME}/.claude/rules"
+mkdir -p "$dst" || exit 0
+
+# session_id, so two sessions each get their own view of what's already seen
+session=$(sed -n 's/.*"session_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+state="${TMPDIR:-/tmp}/skillz-rules-${session:-default}.sha"
+
+for f in "$dst"/skillz-*.md; do
+	[ -e "$f" ] || continue
+	[ -e "$src/${f##*/skillz-}" ] || rm -f "$f"
+done
+for f in "$src"/*.md; do
+	cp -f "$f" "$dst/skillz-${f##*/}"
+done
+
+new=$(shasum "$src"/*.md) || exit 0
+old=$(cat "$state" 2>/dev/null)
+printf '%s\n' "$new" >"$state"
+[ -n "$old" ] || exit 0
+
+changed=$(comm -13 <(printf '%s\n' "$old" | sort) <(printf '%s\n' "$new" | sort) | sed 's/^[0-9a-f]*  //')
+[ -n "$changed" ] || exit 0
+
+echo "These rule files changed on disk since they were loaded. The versions below supersede the copies in your context:"
+while IFS= read -r path; do
+	printf '\n<updated-rule path="%s">\n' "$path"
+	cat "$path"
+	printf '</updated-rule>\n'
+done <<<"$changed"
+exit 0
