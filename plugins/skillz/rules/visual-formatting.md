@@ -24,7 +24,9 @@ sidesteps text wrapping entirely.
 ```text
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ← L1  session / report title
 ┃  TITLE
-┞──────────────────────────────   ← thin close, rail runs on into the body
+┠──────────────────────────────   ← thin close inside a thick rail
+┠─ subtitle ───────────────────   ← interior branch (thin)
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ← thick close
 
 ┌──────────────────────────────   ← L2  major section (boxed)
 │  Section
@@ -37,21 +39,26 @@ sidesteps text wrapping entirely.
 ───────────────────────────────    ← divider between phases (plain rule)
 ```
 
-L1 is heavy on top and thin on the bottom — weight where the title is, the
-close stepping down into the content instead of walling it off. `┞` (U+251E)
-is the step-down: heavy above, thin right and below.
+The outer border is thick the whole way round — top, rail, close — and every
+line _inside_ it is thin. That contrast is what makes the block read as one
+object: the eye takes the heavy stroke as the edge and everything light as
+contents. `┠` (U+2520) is the interior tee: heavy rail, thin branch.
+
+Closing the box with `┗━` bounds it — use that for a finding that stands on its
+own (one agent's return, a small investigation that's done). Leave the close off
+when the report continues below it.
 
 Rules of thumb: one L1 per message; `─` (U+2500) for dividers, full-width-ish;
 box-drawing only, never `---`/`===` ASCII (renders as a markdown hr or heading).
-Single-stroke lines only (`━ ─ ┏ ┃ ┞ ┌ │`) — double-stroke (`═ ║ ╔ ╚`) reads as
+Single-stroke lines only (`━ ─ ┏ ┃ ┠ ┗ ┌ │`) — double-stroke (`═ ║ ╔ ╚`) reads as
 a broken line at terminal font sizes, which is exactly the seam it shouldn't have.
 
 ## Dashboard headers
 
 Two header rows anchor a dashboard:
 
-- **Title** — a boxed L1 (`┏ ┃ ┞`) wrapping the report title. One per report.
-- **Goal** — a tree branch `├─ 🎯 Goal N — <desc> ──`: the `├─` roots it to the
+- **Title** — a boxed L1 (`┏ ┃ ┠ ┗`) wrapping the report title. One per report.
+- **Goal** — a tree branch `┠─ 🎯 Goal N — <desc> ──`: the `┠─` roots it to the
   left rail, `🎯` anchors it, an em dash introduces the description, and a short
   trailing rule closes the row.
 
@@ -59,11 +66,11 @@ Two header rows anchor a dashboard:
 
 Under each goal, group items by **status bucket**, not in a flat list:
 
-- **Bucket row** — sits on the rail as `│ <glyph> <label>` (e.g. `│ ✅ complete`,
-  `│ ⏳ in progress`, `│ ⬜ upcoming`, `│ 👀 watching`). The glyph names the
+- **Bucket row** — sits on the rail as `┃ <glyph> <label>` (e.g. `┃ ✅ complete`,
+  `┃ ⏳ in progress`, `┃ ⬜ upcoming`, `┃ 👀 watching`). The glyph names the
   bucket's state.
 - **Item lines** — indented one step further under the rail as
-  `│   <glyph> <item> ..... <state>`. A leading anchor glyph, then the item, then
+  `┃   <glyph> <item> ..... <state>`. A leading anchor glyph, then the item, then
   dotted leaders aligning a short state or note at the right. One item per line.
 
 Reuse the _same_ glyphs everywhere:
@@ -74,7 +81,7 @@ Reuse the _same_ glyphs everywhere:
 ## Multiple goals
 
 Stack goals highest-priority (or newest) first — `Goal 2` above `Goal 1`.
-Separate them with a bare `│` spacer line. Each goal repeats the header +
+Separate them with a bare `┃` spacer line. Each goal repeats the header +
 bucket structure independently, so the eye can scan one goal at a time.
 
 ## Example — a status report
@@ -85,26 +92,26 @@ titles the block; rules split phases.
 ```text
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ┃  🔍 CLA-1980  ·  medallion ETL  ·  merge + prod deploy
-┞────────────────────────────────────────────────────────
-├─ 🎯 Goal 2 — ship the Dagster ETL foundation to prod ──
-│
-│ ✅ complete
-│   📦 merge #2139 → main ........ complete   (squash 6d4194248)
-│
-│ ⏳ in progress
-│   🧪 main CI ................... in progress
-│   🚀 staging deploy + migrate .. queued behind CI
-│
-│ ⬜ upcoming
-│   🩺 verify staging migrate .... pending
-│
-├─ 🎯 Goal 1 — prod stability ───────────────────────────
-│
-│  ✅ complete
-│   🩺 legacy Celery ETL ......... STABLE  (8/8 monitors OK)
-│
-│  👀 watching
-│   ⚠️  psycopg async-conn regression (~1.3k/day) — track, not blocking
+┠─ 🎯 Goal 2 — ship the Dagster ETL foundation to prod ──
+┃
+┃ ✅ complete
+┃   📦 merge #2139 → main ........ complete   (squash 6d4194248)
+┃
+┃ ⏳ in progress
+┃   🧪 main CI ................... in progress
+┃   🚀 staging deploy + migrate .. queued behind CI
+┃
+┃ ⬜ upcoming
+┃   🩺 verify staging migrate .... pending
+┃
+┠─ 🎯 Goal 1 — prod stability ───────────────────────────
+┃
+┃ ✅ complete
+┃   🩺 legacy Celery ETL ......... STABLE  (8/8 monitors OK)
+┃
+┃ 👀 watching
+┃   ⚠️  psycopg async-conn regression (~1.3k/day) — track, not blocking
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
 ## Important question block
