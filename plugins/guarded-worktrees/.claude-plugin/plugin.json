@@ -1,0 +1,13 @@
+{
+  "name": "guarded-worktrees",
+  "description": "Refuse worktrees on main/master or a local base ref, and fetch origin before branching so a new worktree never starts from a stale ref. Guards both `git worktree add` and the EnterWorktree tool.",
+  "version": "0.1.0",
+  "author": {
+    "name": "NorthIsUp",
+    "url": "https://github.com/NorthIsUp"
+  },
+  "homepage": "https://github.com/NorthIsUp/skillz/tree/main/plugins/guarded-worktrees",
+  "repository": "https://github.com/NorthIsUp/skillz",
+  "license": "MIT",
+  "keywords": ["git", "worktree", "hooks", "pretooluse", "origin", "stale-ref"]
+}
