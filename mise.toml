@@ -36,6 +36,10 @@ run = "scripts/bump-plugin.sh"
 description = "Self-check bump-plugin.sh (version math + prettier-clean output)"
 run = "scripts/test-bump-plugin.sh"
 
+[tasks.test-sync-rules]
+description = "Self-check sync-rules hook (mirrors rules/, injects only changes)"
+run = "scripts/test-sync-rules.sh"
+
 [tasks.version-guard]
 description = "Locally check that changed plugins have bumped versions (vs origin/main)"
 run = """

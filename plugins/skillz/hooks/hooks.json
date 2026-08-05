@@ -9,7 +9,17 @@
           },
           {
             "type": "command",
-            "command": "{ mkdir -p \"${HOME}/.claude/rules\"; for f in \"${HOME}/.claude/rules\"/skillz-*.md; do [ -e \"${CLAUDE_PLUGIN_ROOT}/rules/${f##*/skillz-}\" ] || rm -f \"$f\"; done; for f in \"${CLAUDE_PLUGIN_ROOT}\"/rules/*.md; do cp -f \"$f\" \"${HOME}/.claude/rules/skillz-${f##*/}\"; done; } >/dev/null 2>&1; exit 0"
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/sync-rules\""
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/sync-rules\""
           }
         ]
       }
