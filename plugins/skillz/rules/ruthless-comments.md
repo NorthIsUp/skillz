@@ -42,8 +42,10 @@ buries the thing you just made scannable. Prose is for what no structure can
 hold. A caveat that belongs to one row goes _in_ that row.
 
 Asking for a decision is its own shape: the question is the message. Options
-one line each, the recommended one marked and first, at most one line of why
-per option. No paragraph defending the recommendation — reasoning nests under
+one line each, each carrying its ID in a leading column or leading token (see
+`unique-option-numbering`), the recommended one marked and first, at most one
+line of why per option. The closing ask is `say **C1** or **C2**` — the ID is
+what they type back. No paragraph defending the recommendation — reasoning nests under
 the claim it supports, never floats as prose between the evidence and the ask.
 
 Close with the action items, one line each, only things the human does: the
