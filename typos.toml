@@ -1,7 +1,9 @@
 [default]
 extend-ignore-re = [
   # Allow common skill jargon
-  "(?Rm)^.*disable-model-invocation.*$"
+  "(?Rm)^.*disable-model-invocation.*$",
+  # Option-ID prefixes (A, AA, BA …) are letters, not words
+  "(?Rm)^expect .*$"
 ]
 
 [files]

@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# Tell the model which option-group prefix to use next, derived from the
+# transcript rather than from memory — a model can't reliably recall which
+# letters it already spent 200 turns ago, and a reused prefix silently breaks
+# the one guarantee unique-option-numbering makes.
+#
+# Only IDs written in the shapes the rule mandates count (**C1**, "| C1", "- C1",
+# "(C1)"). Over-counting is harmless — it burns a letter — while under-counting
+# collides, so the patterns lean inclusive.
+set -uo pipefail
+
+transcript=$(sed -n 's/.*"transcript_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+[ -n "$transcript" ] && [ -r "$transcript" ] || exit 0
+
+# Bijective base-26: A=1, Z=26, AA=27. Empty string is 0, so no-IDs-yet yields A.
+to_num() {
+	local s=$1 n=0 i c
+	for ((i = 0; i < ${#s}; i++)); do
+		printf -v c '%d' "'${s:i:1}"
+		n=$((n * 26 + c - 64))
+	done
+	printf '%d' "$n"
+}
+
+from_num() {
+	local n=$1 r out=
+	while ((n > 0)); do
+		r=$(((n - 1) % 26))
+		out=$(printf "\\$(printf '%03o' $((65 + r)))")$out
+		n=$(((n - 1) / 26))
+	done
+	printf '%s' "$out"
+}
+
+# Model prose only. Tool-call inputs ride in the same assistant message, so a
+# bash command or a diff mentioning S3 or B2 would otherwise burn letters.
+say_text() {
+	if command -v jq >/dev/null 2>&1; then
+		jq -r 'select(.type=="assistant") | .message.content[]?
+		       | select(.type=="text") | .text' "$transcript" 2>/dev/null
+	else
+		grep '"type":"assistant"' "$transcript" 2>/dev/null
+	fi
+}
+
+max=0
+while IFS= read -r prefix; do
+	n=$(to_num "$prefix")
+	((n > max)) && max=$n
+done < <(
+	say_text |
+		grep -oE '(^|[^A-Za-z0-9_])[A-Z]{1,2}[0-9]+(\*\*|[ ]*[·—:)|,]|$)' |
+		grep -oE '[A-Z]{1,2}' | sort -u
+)
+
+printf 'Next option-group prefix: %s. Any options, choices, or examples you present this turn are %s1, %s2, … (see unique-option-numbering).\n' \
+	"$(from_num $((max + 1)))" "$(from_num $((max + 1)))" "$(from_num $((max + 1)))"
