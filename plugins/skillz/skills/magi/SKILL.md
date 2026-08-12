@@ -35,6 +35,16 @@ Dispatch **all three units in parallel** — a single message with three `Task`
 calls, one per agent type. They must **not** see each other's positions; these
 are independent priors.
 
+**Never give a unit a `name`.** A named spawn becomes a teammate session, and a
+teammate's plain text is invisible to its caller — reporting back requires
+`SendMessage`, which the personas deliberately lack. The unit judges the
+proposal perfectly well and then has no way to hand you the verdict, so it goes
+idle and pings "available" forever while the tally waits on a vote that can
+never arrive. Unnamed dispatch returns the position directly — inline when
+synchronous, in the completion notification when backgrounded. Prefer
+`run_in_background: false` so all three land in one round; Round 1 is a barrier
+and calls in a single message run concurrently either way.
+
 Each `Task` prompt contains:
 
 - **The proposal** (verbatim or your crisp restatement).
@@ -50,9 +60,9 @@ priors already agree. Go straight to the verdict.
 
 ## Round 2 — cross-examination (only if Round 1 is not unanimous)
 
-Now let the units see each other. Dispatch the three **in parallel again**,
-giving each unit the **other two's** Round 1 positions and votes, and asking it
-to **reconsider and cast a FINAL vote**. Each may hold or change its vote, but
+Now let the units see each other. Dispatch the three **in parallel again**
+(unnamed, same as Round 1), giving each unit the **other two's** Round 1
+positions and votes, and asking it to **reconsider and cast a FINAL vote**. Each may hold or change its vote, but
 must give a **one-line reason** for holding or moving. A CONDITIONAL vote should
 restate its conditions (or drop them if the cross-examination resolved them).
 
