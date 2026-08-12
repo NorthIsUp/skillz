@@ -40,6 +40,19 @@ run = "scripts/test-bump-plugin.sh"
 description = "Self-check sync-rules hook (mirrors rules/, injects only changes)"
 run = "scripts/test-sync-rules.sh"
 
+[tasks.test-magi-guard]
+description = "Self-check magi-guard hook (blocks a named MAGI spawn, passes the rest)"
+run = "scripts/test-magi-guard.sh"
+
+[tasks.test]
+description = "Run every self-check script (matches CI)"
+run = [
+  "scripts/test-bump-plugin.sh",
+  "scripts/test-sync-rules.sh",
+  "scripts/test-next-option-id.sh",
+  "scripts/test-magi-guard.sh",
+]
+
 [tasks.version-guard]
 description = "Locally check that changed plugins have bumped versions (vs origin/main)"
 run = """

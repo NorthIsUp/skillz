@@ -24,3 +24,6 @@ jobs:
 
       - name: hk check
         run: mise run lint
+
+      - name: Self-checks
+        run: mise run test
