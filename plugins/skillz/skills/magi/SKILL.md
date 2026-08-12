@@ -32,8 +32,12 @@ ambiguous, state your one-line interpretation of it up front, then proceed.
 ## Round 1 — independent positions (always)
 
 Dispatch **all three units in parallel** — a single message with three `Task`
-calls, one per agent type. They must **not** see each other's positions; these
-are independent priors.
+calls, one per agent type, each with **`run_in_background: false`**. They must
+**not** see each other's positions; these are independent priors.
+
+Synchronous dispatch is required: the units have no `SendMessage` tool, so a
+backgrounded unit's position never reaches you — you get a "finished" ping with
+no verdict, and the tally can never run.
 
 Each `Task` prompt contains:
 
@@ -50,8 +54,8 @@ priors already agree. Go straight to the verdict.
 
 ## Round 2 — cross-examination (only if Round 1 is not unanimous)
 
-Now let the units see each other. Dispatch the three **in parallel again**,
-giving each unit the **other two's** Round 1 positions and votes, and asking it
+Now let the units see each other. Dispatch the three **in parallel again**
+(again `run_in_background: false`), giving each unit the **other two's** Round 1 positions and votes, and asking it
 to **reconsider and cast a FINAL vote**. Each may hold or change its vote, but
 must give a **one-line reason** for holding or moving. A CONDITIONAL vote should
 restate its conditions (or drop them if the cross-examination resolved them).
