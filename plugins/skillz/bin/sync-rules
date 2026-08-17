@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Mirror the plugin's rules/ into ~/.claude/rules, and re-inject any rule that
-# changed since this session last looked.
+# Mirror the plugin's rules/ into ~/.claude/rules, re-inject any rule that
+# changed since this session last looked, and periodically re-inject the rules
+# that shape every reply.
 #
 # Runs on both SessionStart and UserPromptSubmit. No hook fires on
 # /reload-plugins, and InstructionsLoaded can't add context — a UserPromptSubmit
@@ -14,8 +15,11 @@ src="${CLAUDE_PLUGIN_ROOT:?}/rules"
 dst="${HOME}/.claude/rules"
 mkdir -p "$dst" || exit 0
 
+hook=$(cat)
+json() { sed -n "s/.*\"$1\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p" <<<"$hook"; }
+
 # session_id, so two sessions each get their own view of what's already seen
-session=$(sed -n 's/.*"session_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+session=$(json session_id)
 state="${TMPDIR:-/tmp}/skillz-rules-${session:-default}.sha"
 
 for f in "$dst"/skillz-*.md; do
@@ -26,18 +30,52 @@ for f in "$src"/*.md; do
 	cp -f "$f" "$dst/skillz-${f##*/}"
 done
 
-new=$(shasum "$src"/*.md) || exit 0
-old=$(cat "$state" 2>/dev/null)
-printf '%s\n' "$new" >"$state"
-[ -n "$old" ] || exit 0
+emit() { # emit <preamble> <path>...
+	printf '%s\n' "$1"
+	shift
+	for path; do
+		printf '\n<rule path="%s">\n' "$path"
+		cat "$path"
+		printf '</rule>\n'
+	done
+}
 
-changed=$(comm -13 <(printf '%s\n' "$old" | sort) <(printf '%s\n' "$new" | sort) | sed 's/^[0-9a-f]*  //')
-[ -n "$changed" ] || exit 0
+changed() {
+	local new old list
+	new=$(shasum "$src"/*.md) || return 1
+	old=$(cat "$state" 2>/dev/null)
+	printf '%s\n' "$new" >"$state"
+	[ -n "$old" ] || return 1
+	list=$(comm -13 <(printf '%s\n' "$old" | sort) <(printf '%s\n' "$new" | sort) | sed 's/^[0-9a-f]*  //')
+	[ -n "$list" ] || return 1
+	# shellcheck disable=SC2086 # paths are ~/.claude/rules/skillz-*.md, no spaces
+	emit "These rule files changed on disk since they were loaded. The versions below supersede the copies in your context:" $list
+}
 
-echo "These rule files changed on disk since they were loaded. The versions below supersede the copies in your context:"
-while IFS= read -r path; do
-	printf '\n<updated-rule path="%s">\n' "$path"
-	cat "$path"
-	printf '</updated-rule>\n'
-done <<<"$changed"
+# Formatting rules decay as the transcript grows — the further back the only
+# copy sits, the less it steers. Re-print them every REMINDER_TOKENS of context.
+# ponytail: fixed step, not a real percentage — hooks aren't told the window
+# size. 20k is 10% of a 200k window; raise it on a bigger model.
+remind() {
+	local transcript last now tok="${state%.sha}.tok" step=${SKILLZ_REMINDER_TOKENS:-20000}
+	transcript=$(json transcript_path)
+	[ -r "$transcript" ] || return 1
+	# ponytail: cached-prefix size stands in for context size — close enough,
+	# and it's the one number the transcript hands over without parsing JSON.
+	now=$(tail -400 "$transcript" | grep -o '"cache_read_input_tokens":[0-9]*' | tail -1 | tr -dc 0-9)
+	[ -n "$now" ] || return 1
+	# The baseline moves only when a reminder prints, so growth accumulates
+	# across turns; a shrinking count means compaction, so rebaseline there.
+	last=$(cat "$tok" 2>/dev/null | tr -dc 0-9)
+	if [ -z "$last" ] || [ "$now" -lt "$last" ]; then
+		printf '%s\n' "$now" >"$tok"
+		return 1
+	fi
+	[ "$now" -ge $((last + step)) ] || return 1
+	printf '%s\n' "$now" >"$tok"
+	emit "Reminder — the rule below shapes every reply and drifts out of attention as the context grows. Re-read it before answering:" \
+		"$dst/skillz-visual-formatting.md"
+}
+
+changed || remind
 exit 0
