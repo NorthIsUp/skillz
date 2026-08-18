@@ -57,6 +57,7 @@ open-right box keeps alignment easy and sidesteps text wrapping entirely.
 indent every line. Same three weights, no box:
 
 ```text
+▀▀ Section ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀   ← Mega weight (exceptionally rare usage)
 ══ Section ════════════════════   ← L1 weight
 ━━ Section ━━━━━━━━━━━━━━━━━━━━   ← L2 weight
 ── Section ────────────────────   ← L3 weight
@@ -93,9 +94,29 @@ Under each goal, group items by **status bucket**, not in a flat list:
   dotted leaders aligning a short state or note at the right. One item per line.
 
 Reuse the _same_ glyphs everywhere:
-✅ done · ⏳ in progress · ⬜ pending · ❌ failed · 🔴 blocked · 👀 watching · ⚠️ caveat/track
-· 🔍 investigating · 🧪 tests/CI · 🩺 health · 🚀 deploy · 🎯 goal · 📦 artifact
-· 🗄️ data/table · 🔀 PR.
+
+- ✅ done
+- ❎ canceled by user
+- ❇️ deferred by user
+- ⏳ in progress
+- 🆙 pending/up next
+- ❌ failed
+- 🔴 blocked
+- 👀 watching
+- 🔄 looping
+- ⚠️ caveat/track
+- 🔍 investigating
+- 🧪 tests/CI
+- 🩺 health
+- 🚀 deploy
+- 🎯 goal
+- 📦 artifact
+- 🗄️ data/table
+- 🔀 PR
+- ❗️ interesting info
+- ‼️ important info
+- ❓ question
+- ⁉️ blocking question
 
 ## Multiple goals
 
@@ -120,7 +141,7 @@ titles the block; rules split phases.
 ║   🧪 main CI ................... in progress
 ║   🚀 staging deploy + migrate .. queued behind CI
 ║
-║ ⬜ upcoming
+║ 🆙 upcoming
 ║   🩺 verify staging migrate .... pending
 ║
 ╟─ 🎯 Goal 1 — prod stability ───────────────────────────
