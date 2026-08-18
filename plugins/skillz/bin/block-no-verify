@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# PreToolUse gate for never-no-verify: a failing hook is a finding to
+# root-cause, so the bypass is blocked rather than left to willpower.
+#
+# Matches the raw payload instead of parsing .tool_input.command — a Bash call
+# that mentions both `git` and a bypass flag is the thing we're blocking, even
+# when it only appears in the description.
+set -uo pipefail
+
+payload=$(cat)
+
+# The human's per-commit grant, spelled out in the command itself.
+case $payload in *NO_VERIFY_OK=1*) exit 0 ;; esac
+
+case $payload in
+*git*--no-verify* | *'git commit -n'* | *'git push --no-verify'*)
+	echo "Blocked by skillz rule never-no-verify: --no-verify bypasses the only gate between a broken commit and the default branch." >&2
+	echo "Root-cause the failing hook instead — the code is wrong, or the hook is wrong; fix whichever it is." >&2
+	echo "If the human grants a per-commit bypass, they say so and the command carries NO_VERIFY_OK=1." >&2
+	exit 2
+	;;
+esac
+exit 0
