@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# PreToolUse gate on Agent/Task: refuse a MAGI unit spawned with a `name`.
+#
+# A named spawn becomes a teammate session, and a teammate hands work back only
+# by calling SendMessage — which the personas' tools (Read, Grep, Glob) don't
+# include. Verified: the unit judges the proposal and writes a complete verdict
+# to its own transcript, then idles pinging "available" while the tally waits on
+# a vote that can never arrive.
+#
+# Exit 2 blocks the call; stderr goes to the model.
+# ponytail: matches magi-* by name rather than resolving each agent's frontmatter
+# to see whether its tools include SendMessage — widen to that if other
+# restricted personas start getting spawned as teammates.
+set -euo pipefail
+
+payload=$(cat)
+type=$(jq -r '.tool_input.subagent_type // ""' <<<"$payload")
+name=$(jq -r '.tool_input.name // ""' <<<"$payload")
+
+[[ $type == *magi-* && -n $name ]] || exit 0
+
+echo "MAGI unit \"$type\" spawned with name=\"$name\" — blocked. Dispatch it unnamed." >&2
+echo "A named spawn becomes a teammate session. The personas have no SendMessage, so the verdict never reaches you: you get an idle ping and the tally hangs." >&2
+exit 2
