@@ -41,11 +41,12 @@ description = "Self-check sync-rules hook (mirrors rules/, injects only changes)
 run = "scripts/test-sync-rules.sh"
 
 [tasks.version-guard]
-description = "Locally check that changed plugins have bumped versions (vs origin/main)"
-run = """
-BASE_SHA=$(git merge-base HEAD origin/main) HEAD_SHA=$(git rev-parse HEAD) \
-  scripts/version-guard.sh
-"""
+description = "Check plugin.json and marketplace.json versions agree"
+run = "scripts/version-guard.sh"
+
+[tasks.test-auto-bump]
+description = "Self-check auto-bump-plugins.sh (bumps only unreleased-change plugins)"
+run = "scripts/test-auto-bump-plugins.sh"
 
 [tasks.auto-push]
 description = "Stage all changes, commit, and push (used by mise watch)"
