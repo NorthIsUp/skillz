@@ -15,15 +15,18 @@ jobs:
         with:
           fetch-depth: 0
 
-      # bump-plugin.sh reformats the manifests it edits so the lint job stays happy
-      - run: npm install -g prettier
+      # bump-plugin.sh runs prettier on the manifests it edits
+      - uses: jdx/mise-action@v2
+        with:
+          install: true
+          cache: true
 
       - name: Auto-bump plugins changed since their last release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: scripts/auto-bump-plugins.sh
+        run: mise run auto-bump
 
       - name: Release new plugin versions
         env:
           GH_TOKEN: ${{ github.token }}
-        run: scripts/release-plugins.sh
+        run: mise run release

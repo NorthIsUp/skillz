@@ -15,5 +15,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: jdx/mise-action@v2
+        with:
+          install: true
+          cache: true
+
       - name: Plugin versions agree across manifests
-        run: scripts/version-guard.sh
+        run: mise run version-guard
