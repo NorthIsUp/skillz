@@ -28,6 +28,14 @@ run = "hk run pre-commit"
 description = "Validate SKILL.md frontmatter"
 run = "scripts/validate-skills.sh"
 
+[tasks.auto-bump]
+description = "Patch-bump every plugin changed since its own release tag (CI, main only)"
+run = "scripts/auto-bump-plugins.sh"
+
+[tasks.release]
+description = "Tag and GitHub-release any plugin version that has no tag yet (CI, main only)"
+run = "scripts/release-plugins.sh"
+
 [tasks.bump]
 description = "Bump a plugin's version (usage: mise run bump <plugin> [patch|minor|major])"
 run = "scripts/bump-plugin.sh"
@@ -35,6 +43,10 @@ run = "scripts/bump-plugin.sh"
 [tasks.test-bump]
 description = "Self-check bump-plugin.sh (version math + prettier-clean output)"
 run = "scripts/test-bump-plugin.sh"
+
+[tasks.test-next-option-id]
+description = "Self-check the next-option-id hook"
+run = "scripts/test-next-option-id.sh"
 
 [tasks.test-sync-rules]
 description = "Self-check sync-rules hook (mirrors rules/, injects only changes)"
@@ -47,6 +59,10 @@ run = "scripts/version-guard.sh"
 [tasks.test-auto-bump]
 description = "Self-check auto-bump-plugins.sh (bumps only unreleased-change plugins)"
 run = "scripts/test-auto-bump-plugins.sh"
+
+[tasks.unstage-symlink-skills]
+description = "Unstage symlinked skills (hk pre-commit entry point)"
+run = "scripts/unstage-symlink-skills.sh"
 
 [tasks.auto-push]
 description = "Stage all changes, commit, and push (used by mise watch)"
