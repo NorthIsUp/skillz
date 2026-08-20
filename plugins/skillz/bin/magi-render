@@ -124,7 +124,16 @@ def tally(state: dict[str, Any]) -> dict[str, Any]:
 
 
 def find(state: dict[str, Any], uid: str) -> dict[str, Any]:
-    return next(u for u in state["units"] if u["id"] == uid)
+    try:
+        return next(u for u in state["units"] if u["id"] == uid)
+    except StopIteration:
+        raise SystemExit(f"magi-render: no unit '{uid}' in state — close needs every unit to have voted")
+
+
+def roster(state: dict[str, Any] | None = None) -> int:
+    """Unit count follows the state when it has one — the literal 3 would have to
+    be chased through four renderers the first time a fourth unit exists."""
+    return len(state["units"]) if state and state.get("units") else len(UNITS)
 
 
 def boot() -> str:
@@ -133,7 +142,7 @@ def boot() -> str:
     return "\n".join([
         "  MAGI SYSTEM  ver 2.0.7 ................ INITIALISING",
         *rows,
-        "  ▸ casting bodies ...................... 3 / 3",
+        f"  ▸ casting bodies ...................... {roster()} / {roster()}",
         "  CODE : 001                            審 議 開 始",
     ])
 
@@ -143,7 +152,7 @@ def header(state: dict[str, Any]) -> str:
         "N  E  R  V",
         "─" * 36,
         f"議案 — {state['proposal']}",
-        f"CODE : 001 · 審議中 · 3 units casting",
+        f"CODE : 001 · 審議中 · {roster()} units casting",
     ]
     gap = max(len(line) for line in LEAF) + 4
     out = []
@@ -228,6 +237,22 @@ def transcript(state: dict[str, Any]) -> str:
     return "\n".join(out)
 
 
+def status(state: dict[str, Any]) -> str:
+    """Shows which units have reported, never how they voted: Round 1 is a
+    barrier, so a partial tally would render priors as though they were results."""
+    done = [u for u in state.get("units", []) if u.get("vote")]
+    secs = int(time.time() - state.get("started", time.time()))
+    head = f"── 審議中 "
+    tail = f" {secs // 60:02d}:{secs % 60:02d} · {len(done)}/{roster(state)} ──"
+    rows = []
+    for uid, label, _, _ in UNITS:
+        u = next((x for x in state.get("units", []) if x["id"] == uid), None)
+        reported = bool(u and u.get("vote"))
+        mark, word = ("▰", "SYNC") if reported else ("◌", "casting")
+        rows.append("  " + pad(f"{mark} {label} ", 24, ".") + f" {word}")
+    return "\n".join([head + "─" * (44 - dw(head) - dw(tail)) + tail, *rows])
+
+
 def umbilical(state: dict[str, Any]) -> str:
     """Round state is real; a token budget is not — so the cable tracks rounds."""
     if state.get("rounds", 1) < 2:
@@ -240,7 +265,7 @@ def clock(state: dict[str, Any]) -> str:
     text = f"{secs // 60:02d}:{secs % 60:02d}"
     rows = ["   " + " ".join(SEG[c][r] for c in text) for r in range(3)]
     rows[0] += "      TIME TO DECISION"
-    rows[1] += f"      {text} · {state.get('rounds', 1)} round(s) · 3 units"
+    rows[1] += f"      {text} · {state.get('rounds', 1)} round(s) · {roster(state)} units"
     return "\n".join(rows)
 
 
@@ -294,6 +319,23 @@ def selftest() -> None:
     assert len(bar(0.5)) == BAR and bar(1.0).count("█") == BAR
     assert all(len(r) == 3 for g in SEG.values() for r in g), "seg font must be 3 wide"
 
+    # Re-running open must not rewind the clock — a status beat re-renders freely.
+    import tempfile
+    with tempfile.NamedTemporaryFile("w+", suffix=".json", delete=False) as fh:
+        json.dump({"started": 1000.0, "units": []}, fh)
+        tmp = Path(fh.name)
+    st = json.loads(tmp.read_text())
+    st.setdefault("started", time.time())
+    assert st["started"] == 1000.0, "open must not re-stamp started"
+    tmp.unlink()
+
+    # status accepts partial state; close refuses it.
+    partial = votes("approve", "conditional", "reject")
+    partial["units"][2].pop("vote")
+    assert "1/3" not in status(partial) and "2/3" in status(partial)
+    assert "casting" in status(partial) and "APPROVE" not in status(partial), "no vote content in interim"
+    assert roster(partial) == 3 and roster(None) == 3
+
     # Trinity stacks several boxes at different indents, so rectangularity is
     # per-box: lines sharing an indent are the same box and must share a width.
     for block in (trinity(votes("approve", "conditional", "reject")),
@@ -309,7 +351,7 @@ def selftest() -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="Render MAGI deliberation chrome.")
-    ap.add_argument("phase", choices=["open", "field", "close", "selftest"])
+    ap.add_argument("phase", choices=["open", "status", "field", "close", "selftest"])
     ap.add_argument("--state", type=Path)
     args = ap.parse_args()
 
@@ -320,13 +362,18 @@ def main() -> None:
 
     state = json.loads(args.state.read_text())
     if args.phase == "open":
-        # Stamping the clock here keeps elapsed time out of the model's bookkeeping.
-        state["started"] = time.time()
+        # setdefault, not assignment: re-running open must not rewind the clock.
+        state.setdefault("started", time.time())
         args.state.write_text(json.dumps(state, indent=2, ensure_ascii=False))
         blocks = [boot(), header(state), target(state)]
+    elif args.phase == "status":
+        blocks = [status(state)]
     elif args.phase == "field":
         blocks = [field(state)]
     else:
+        missing = [u["id"] for u in state["units"] if not u.get("vote")]
+        if missing:
+            raise SystemExit(f"magi-render: close needs every vote; still casting: {', '.join(missing)}")
         blocks = [umbilical(state), trinity(state), transcript(state),
                   clock(state), consensus(state), verdict(state)]
     print("\n\n".join(b for b in blocks if b))

@@ -56,6 +56,20 @@ Each `Task` prompt contains:
 Before the first dispatch, print the **boot block** and run `date +%s` — the
 decision clock starts here and is read again at the verdict.
 
+### Status beats
+
+Each completion event earns **one** beat, pasted into your message text:
+
+```bash
+magi-render status --state <file>
+```
+
+Never more than one line per unit, and never the vote — Round 1 is a barrier, so
+a partial tally would present priors as results, and vote-bearing interim output
+invites a mid-round interjection, the one channel that can actually contaminate
+an open round. `status` shows `SYNC` or `casting`, nothing else. It accepts
+partial state; `close` refuses it and says which unit is still out.
+
 Collect the three positions and their initial votes.
 
 **If Round 1 is unanimous** (all APPROVE, or all REJECT), skip Round 2 — the
@@ -96,17 +110,22 @@ time, and the seven-segment clock. Freehanded box-drawing drifts its column
 widths between runs, and a model asked for "4 files · 210 LOC" or "sync 81%"
 will invent both.
 
-Write a state file, then call the renderer at three points and paste its stdout
-verbatim into the report.
+**Paste every render into your message text.** Output left sitting in a tool
+call is folded away by the harness (`… +41 lines, ctrl+o to expand`) and the
+user never sees it — the chrome exists only if you paste it. This is the single
+easiest way to ship all of this and still deliver nothing.
+
+Write a state file, then call the renderer and paste its stdout verbatim.
 
 ```bash
-magi-render open  --state <file>   # boot + NERV header + target card; starts the clock
-magi-render field --state <file>   # A.T. Field — only between Round 1 and Round 2
-magi-render close --state <file>   # umbilical + trinity + transcript + clock + bar + verdict
+magi-render open   --state <file>  # boot + NERV header + target card; starts the clock
+magi-render status --state <file>  # one line per unit — SYNC or casting, never the vote
+magi-render field  --state <file>  # A.T. Field — only between Round 1 and Round 2
+magi-render close  --state <file>  # umbilical + trinity + transcript + clock + bar + verdict
 ```
 
-`open` stamps `started` into the state file, so elapsed time never becomes your
-bookkeeping. Add the unit positions and votes to the same file before `close`.
+`open` stamps `started` into the state file with `setdefault`, so elapsed time
+never becomes your bookkeeping and re-rendering never rewinds the clock. Add the unit positions and votes to the same file before `close`.
 
 #### State schema
 
