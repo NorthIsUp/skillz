@@ -45,15 +45,17 @@ KINDS = {
     "process": "規範型",
 }
 
+# Generated once at 24x8 and baked in: the header renders exactly one size, so
+# shipping the analytic leaf generator alongside it would be dead weight.
 LEAF = [
-    "        ╱▏",
-    "      ╱███▏",
-    "    ╱██████▏",
-    "  ╱█████████▏",
-    "▔▔╲████████▏",
-    "    ╲██████▏",
-    "      ╲████▏",
-    "        ╲██▏",
+    "           \u2597\u2584\u2584\u2584\u2584\u2584\u2584\u2584\u2584\u2584\u2584\u259b",
+    "\u2580\u2580\u259c\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2598",
+    "   \u2588\u2588\u2588\u2588\u2588\u2588\u258c\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258c\u2588\u2588\u2588\u2598",
+    "   \u259d\u2588\u2588\u2588\u2588\u2588\u2588\u258c\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258c\u2588\u2598",
+    "    \u259d\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2580\u2580\u2588\u2588\u2588\u2588\u2588\u2598",
+    "     \u2590\u2588\u2588\u2588\u2588\u259b\u2598  \u259d\u2588\u2588\u2588\u2598",
+    "      \u259c\u2588\u2588\u259b      \u2580\u2598",
+    "       \u2580\u2580",
 ]
 
 # 3x3 seven-segment cells; every glyph is exactly 3 columns so MM:SS never drifts.
@@ -143,11 +145,11 @@ def header(state: dict[str, Any]) -> str:
         f"議案 — {state['proposal']}",
         f"CODE : 001 · 審議中 · 3 units casting",
     ]
-    pad = max(len(line) for line in LEAF) + 9
+    gap = max(len(line) for line in LEAF) + 4
     out = []
     for i, line in enumerate(LEAF):
         txt = right[i - 2] if 2 <= i < 2 + len(right) else ""
-        out.append(f"{line:<{pad}}{txt}".rstrip())
+        out.append(f"{line:<{gap}}{txt}".rstrip())
     return "\n".join(out)
 
 
