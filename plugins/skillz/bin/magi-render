@@ -198,29 +198,50 @@ def field(state: dict[str, Any]) -> str:
     ])
 
 
+def trapezoid(lines: list[str], top: int, flip: bool = False) -> list[str]:
+    """One MAGI panel. Normally widens two columns per row; flipped it tapers
+    downward, which is the shape the top unit has on the real plate."""
+    height = len(lines) + 2
+    # Reversing here keeps the unit name above its vote once the rows flip.
+    lines = lines[::-1] if flip else lines
+    rows = [(" " * (height - 1) + "╱" + "▔" * top + "╲", None)]
+    for i, text in enumerate(lines, 1):
+        rows.append((" " * (height - 1 - i), text))
+    rows.append(("╱" + "▁" * (top + 2 * (height - 1)) + "╲", None))
+    if flip:
+        rows.reverse()
+        rows = [(r.replace("╱", "\x00").replace("╲", "╱").replace("\x00", "╲")
+                 .replace("▔", "\x00").replace("▁", "▔").replace("\x00", "▁"), t)
+                for r, t in rows]
+    out = []
+    for i, (chrome, text) in enumerate(rows):
+        if text is None:
+            out.append(chrome)
+            continue
+        width = top + 2 * (len(rows) - 1 - i if flip else i)
+        gap = width - dw(text)
+        edge = ("╲", "╱") if flip else ("╱", "╲")
+        out.append(chrome + edge[0] + " " * (gap // 2) + text + " " * (gap - gap // 2) + edge[1])
+    return out
+
+
 def trinity(state: dict[str, Any]) -> str:
+    """Canonical MAGI plate: Balthasar above, Casper and Melchior below, the
+    core in the notch between them."""
     t = tally(state)
     mel, balt, cas = (find(state, u[0]) for u in UNITS)
 
     def cell(u: dict[str, Any]) -> str:
         return f"{GLYPH[u['vote']]}  {KANJI[u['vote']]}"
 
-    return "\n".join([
-        "                 ╭───────────────────╮",
-        "                 │   MELCHIOR · 1    │",
-        f"                 │   {pad(cell(mel), 15)} │",
-        "                 ╰─────────╥─────────╯",
-        "                           ║",
-        "        ╭──────────────────╨──────────────────╮",
-        f"        ║   {pad(state['proposal'][:33], 33)} ║",
-        f"        ║   ⟨ {t['score']} ⟩  {pad(t['kanji'], 22)} ║",
-        "        ╰────────╥───────────────────╥────────╯",
-        "                 ║                   ║",
-        "   ╭─────────────╨─────╮   ╭─────────╨─────────╮",
-        "   │   BALTHASAR · 2   │   │    CASPER · 3     │",
-        f"   │   {pad(cell(balt), 15)} │   │    {pad(cell(cas), 14)} │",
-        "   ╰───────────────────╯   ╰───────────────────╯",
-    ])
+    rows = [" " * 12 + r for r in
+            trapezoid(["BALTHASAR · 2", cell(balt)], 18, flip=True)]
+    for line in ("M A G I", f"⟨ {t['score']} ⟩", t["kanji"]):
+        rows.append(" " * (25 - dw(line) // 2) + line)
+    for left, right in zip(trapezoid(["CASPER · 3", cell(cas)], 16),
+                           trapezoid(["MELCHIOR · 1", cell(mel)], 16)):
+        rows.append(left + " " * (25 - dw(left)) + right)
+    return "\n".join(r.rstrip() for r in rows)
 
 
 def transcript(state: dict[str, Any]) -> str:
@@ -336,10 +357,12 @@ def selftest() -> None:
     assert "casting" in status(partial) and "APPROVE" not in status(partial), "no vote content in interim"
     assert roster(partial) == 3 and roster(None) == 3
 
-    # Trinity stacks several boxes at different indents, so rectangularity is
-    # per-box: lines sharing an indent are the same box and must share a width.
-    for block in (trinity(votes("approve", "conditional", "reject")),
-                  target(dict(votes("approve", "approve", "approve"), pattern="blue"))):
+    panel = trapezoid(["a", "b"], 10)
+    assert [dw(r.strip()) for r in panel] == [12, 14, 16, 18], "panel must widen by two"
+    plate = trinity(votes("approve", "conditional", "reject"))
+    assert "MELCHIOR · 1" in plate and "⟨ 2 : 1 ⟩" in plate
+
+    for block in (target(dict(votes("approve", "approve", "approve"), pattern="blue")),):
         boxes: dict[int, set[int]] = {}
         for line in block.splitlines():
             if line.strip().endswith(("│", "║", "╮", "╯")):
