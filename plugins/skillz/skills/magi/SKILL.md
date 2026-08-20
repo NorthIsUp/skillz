@@ -89,126 +89,71 @@ treating **CONDITIONAL as a conditional-APPROVE**:
 
 ### Presentation
 
-The MAGI render in full NERV terminal chrome — four fixed blocks, in order:
-**boot → header → transcript → verdict**. Reproduce the box-drawing character
-for character; these are frames, not suggestions.
+**Do not hand-render the chrome.** `${CLAUDE_PLUGIN_ROOT}/bin/magi-render` owns
+every glyph and every number. You author the judgments; it derives the rest —
+blast radius from `git diff`, threat score, tally, breach %, bar fills, elapsed
+time, and the seven-segment clock. Freehanded box-drawing drifts its column
+widths between runs, and a model asked for "4 files · 210 LOC" or "sync 81%"
+will invent both.
 
-Colour, where the surface supports it: orange `#FF6A00` on black for rails and
-frames, green `#7FFF6A` for telemetry, red `#E01B24` for `緊急事態` **only**.
-Nothing else gets colour.
+Write a state file, then call the renderer at three points and paste its stdout
+verbatim into the report.
 
-**Vote glyphs** — use these everywhere; never spell a vote where a glyph fits.
-
-| Vote           | Glyph | Kanji  | Human aspect (for the deadlock line) |
-| -------------- | ----- | ------ | ------------------------------------ |
-| APPROVE        | `⬢`   | 可決   | Melchior-1 → 科学者 の 部分          |
-| CONDITIONAL    | `◐`   | 条件付 | Balthasar-2 → 母 の 部分             |
-| REJECT         | `⬡`   | 否決   | Casper-3 → 女 の 部分                |
-| (deliberating) | `◌`   | 審議中 | —                                    |
-
-#### 1 · Boot — print before dispatching Round 1
-
-Start the decision clock (`date +%s`) on the same beat.
-
-```text
-  MAGI SYSTEM  ver 2.0.7 ................ INITIALISING
-  ▸ MELCHIOR · 1   科学者 ............... ONLINE
-  ▸ BALTHASAR · 2  母 ................... ONLINE
-  ▸ CASPER · 3     女 ................... ONLINE
-  ▸ casting bodies ...................... 3 / 3
-  CODE : 001                            審 議 開 始
+```bash
+magi-render open  --state <file>   # boot + NERV header + target card; starts the clock
+magi-render field --state <file>   # A.T. Field — only between Round 1 and Round 2
+magi-render close --state <file>   # umbilical + trinity + transcript + clock + bar + verdict
 ```
 
-#### 2 · Header — opens the transcript
+`open` stamps `started` into the state file, so elapsed time never becomes your
+bookkeeping. Add the unit positions and votes to the same file before `close`.
 
-```text
-        ╱▏
-      ╱███▏
-    ╱██████▏         N  E  R  V
-  ╱█████████▏        ────────────────────────────────────
-▔▔╲████████▏         議案 — <one-line proposal>
-    ╲██████▏         CODE : 001 · 審議中 · 3 units casting
-      ╲████▏
-        ╲██▏
+#### State schema
+
+```json
+{
+  "proposal": "add retry policy to fetch_user()",
+  "pattern": "blue",
+  "interpretation": null,
+  "kind": "interface",
+  "base": "origin/main",
+  "irreversible": false,
+  "sensitive": false,
+  "rounds": 2,
+  "decision": "ship it, capped at 3 retries with no jitter",
+  "conditions": ["cap at 3 retries", "4xx never retried"],
+  "deadlock": false,
+  "units": [
+    { "id": "melchior", "vote": "approve", "position": "1–2 lines, pre-wrapped" },
+    { "id": "balthasar", "vote": "conditional", "position": "..." },
+    { "id": "casper", "vote": "reject", "position": "..." }
+  ]
+}
 ```
 
-#### 3 · Transcript — one rail, three units
+Only these fields are yours to judge:
 
-Final votes only (Round 2 if it ran, else Round 1). Position stays 1–2 lines.
+| field                        | rule                                                                                                                                                                                                                      |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pattern`                    | `blue` when a concrete artifact was passed (diff, doc, paths); `orange` when you had to interpret                                                                                                                         |
+| `interpretation`             | required on `orange` — your one-line reading, which the card prints instead of the authorisation line                                                                                                                     |
+| `kind`                       | `behaviour` · `interface` · `structure` · `data` · `process`                                                                                                                                                              |
+| `base`                       | a git ref, so blast radius is measured rather than guessed. Omit for doc/plan proposals — the card says so plainly                                                                                                        |
+| `irreversible` · `sensitive` | feed the threat score: migrations and auth/money/security paths each add a point                                                                                                                                          |
+| `deadlock`                   | a **judgment**, not arithmetic — three units and two blocs always yield a majority, so set this when the decisive conditions are genuinely contested. Also set `holdout`, `aspect` (科学者 / 母 / 女 の 部分), and `axis` |
+| `decision` · `conditions`    | the resulting call, and what would make a CONDITIONAL a clean APPROVE                                                                                                                                                     |
 
-```text
-╔══════════════════════════════════════════════════════════
-║  M A G I   ·   D E L I B E R A T I O N
-╟─ ⬢ MELCHIOR · 1 · 科学者 SCIENTIST ───────────────────────
-║  <position, 1–2 lines>
-║                                     VOTE : ⬢ 可決 APPROVE
-╟─ ◐ BALTHASAR · 2 · 母 ENGINEER ───────────────────────────
-║  <position, 1–2 lines>
-║                                 VOTE : ◐ 条件付 CONDITIONAL
-╟─ ⬡ CASPER · 3 · 女 USER ──────────────────────────────────
-║  <position, 1–2 lines>
-║                                      VOTE : ⬡ 否決 REJECT
-╚══════════════════════════════════════════════════════════
-```
+`position` is printed inside a rail, so pre-wrap it to about 52 columns.
 
-#### 4 · Decision clock — sits above the verdict
+#### Conditional blocks
 
-Read `date +%s` again, subtract the boot timestamp, render `MM:SS` in the
-seven-segment font below. Each glyph is exactly 3 columns wide and 3 rows tall,
-so digits stack into a strip without alignment drift.
+The renderer suppresses anything that carries no information: the umbilical
+line prints only when Round 2 ran (a connected cable is not news), and `field`
+is only worth calling when Round 1 was not unanimous — it is the _reason_
+Round 2 is happening.
 
-```text
- 0     1     2     3     4     5     6     7     8     9     :
-┏━┓    ╻   ╺━┓   ╺━┓   ╻ ╻   ┏━╸   ┏━╸   ╺━┓   ┏━┓   ┏━┓
-┃ ┃    ┃   ┏━┛   ╺━┫   ┗━┫   ┗━┓   ┣━┓     ┃   ┣━┫   ┗━┫    ▪
-┗━┛    ╹   ┗━╸   ╺━┛     ╹   ╺━┛   ┗━┛     ╹   ┗━┛   ╺━┛    ▪
-```
-
-Rendered — here `01:32`:
-
-```text
-   ┏━┓  ╻     ╺━┓ ╺━┓
-   ┃ ┃  ┃  ▪  ┏━┛ ╺━┫      TIME TO DECISION
-   ┗━┛  ╹  ▪  ┗━╸ ╺━┛      01:32 · 2 rounds · 26.4k tok
-```
-
-#### 5 · Verdict — carried, denied, or deadlocked
-
-**Carried** (`UNANIMOUS APPROVE`, `MAJORITY APPROVE`, `CONDITIONAL`):
-
-```text
-▛▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
-▌  ⬢  可 決      M O T I O N   C A R R I E D      2 : 1
-▌  ▸ <resulting decision, one line>
-▌  ▸ conditions: <c1> · <c2>          ← omit the line if none
-▙▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
-```
-
-**Denied** (`REJECTED`) — same frame, swapped head:
-
-```text
-▌  ⬡  否 決      M O T I O N   D E N I E D       1 : 2
-```
-
-**Deadlock** — red, `CODE : 601`, and it replaces the verdict box entirely:
-
-```text
-▛▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
-▌  緊 急 事 態     D E A D L O C K     CODE : 601
-▌
-▌  MELCHIOR·1 ⬢ 可決 ┃ BALTHASAR·2 ⬡ 否決 ┃ CASPER·3 ⬡ 否決
-▌  ▸ CASPER · 3 refuses to yield — 女 の 部分
-▌  ▸ unresolved axis: <the actual disagreement, one line>
-▌  ▸ tie-break required · escalate to operator
-▙▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
-```
-
-The `refuses to yield` line names the **holdout unit and its human aspect** —
-that is the whole point of the deadlock, not the tally. Pick the unit whose
-vote blocks resolution; if two block it, name both on one line.
-
-Under the verdict box, state the resulting decision in one plain line outside
-the chrome. On CONDITIONAL, that line says what would make it a clean APPROVE.
+`magi-render selftest` checks the tally math, the threat scale, the CJK
+display-width padding, and that every closed box comes out rectangular.
 
 ## Two modes of use
 
@@ -229,5 +174,5 @@ the chrome. On CONDITIONAL, that line says what would make it a clean APPROVE.
 - CONDITIONAL must carry concrete, checkable conditions — never a vague "maybe".
 - Keep the transcript crisp: one short header + position + vote per unit, then
   the verdict. Don't re-narrate each round in full.
-- The four chrome blocks are **fixed frames** — reproduce the box-drawing
-  character for character. Prose stays crisp; the chrome carries the drama.
+- Never hand-render the chrome — call `magi-render`. It is the only thing that
+  keeps column widths stable and keeps derived numbers from being invented.

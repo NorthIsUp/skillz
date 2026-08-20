@@ -1,0 +1,334 @@
+#!/usr/bin/env python3
+# Render the MAGI deliberation chrome from a state file.
+#
+# The model authors judgments (votes, positions, change kind); this script owns
+# every number and every glyph. Freehanded ASCII drifts its column widths
+# between runs, and a model asked for "sync 81%" or "4 files / 210 LOC" will
+# invent both — so anything derivable is derived here instead.
+#
+# Targets system python (3.9 on macOS) rather than the repo's mise toolchain:
+# plugin bin/ scripts run on whatever the user has.
+from __future__ import annotations
+
+import argparse
+import json
+import subprocess
+import time
+import unicodedata
+from pathlib import Path
+from typing import Any
+
+BAR = 24
+
+
+def dw(text: str) -> int:
+    """Display width — CJK and the kanji labels occupy two terminal columns, so
+    padding by len() silently skews every dotted leader in the report."""
+    return sum(2 if unicodedata.east_asian_width(c) in "WF" else 1 for c in text)
+
+
+def pad(text: str, width: int, fill: str = " ") -> str:
+    return text + fill * max(0, width - dw(text))
+
+GLYPH = {"approve": "⬢", "conditional": "◐", "reject": "⬡"}
+KANJI = {"approve": "可決", "conditional": "条件付", "reject": "否決"}
+UNITS = [
+    ("melchior", "MELCHIOR · 1", "科学者", "SCIENTIST"),
+    ("balthasar", "BALTHASAR · 2", "母", "ENGINEER"),
+    ("casper", "CASPER · 3", "女", "USER"),
+]
+KINDS = {
+    "behaviour": "行動型",
+    "interface": "界面型",
+    "structure": "構造型",
+    "data": "情報型",
+    "process": "規範型",
+}
+
+LEAF = [
+    "        ╱▏",
+    "      ╱███▏",
+    "    ╱██████▏",
+    "  ╱█████████▏",
+    "▔▔╲████████▏",
+    "    ╲██████▏",
+    "      ╲████▏",
+    "        ╲██▏",
+]
+
+# 3x3 seven-segment cells; every glyph is exactly 3 columns so MM:SS never drifts.
+SEG = {
+    "0": ("┏━┓", "┃ ┃", "┗━┛"),
+    "1": ("  ╻", "  ┃", "  ╹"),
+    "2": ("╺━┓", "┏━┛", "┗━╸"),
+    "3": ("╺━┓", "╺━┫", "╺━┛"),
+    "4": ("╻ ╻", "┗━┫", "  ╹"),
+    "5": ("┏━╸", "┗━┓", "╺━┛"),
+    "6": ("┏━╸", "┣━┓", "┗━┛"),
+    "7": ("╺━┓", "  ┃", "  ╹"),
+    "8": ("┏━┓", "┣━┫", "┗━┛"),
+    "9": ("┏━┓", "┗━┫", "╺━┛"),
+    ":": ("   ", " ▪ ", " ▪ "),
+}
+
+
+def bar(frac: float, width: int = BAR) -> str:
+    n = round(frac * width)
+    return "█" * n + "░" * (width - n)
+
+
+def blast(base: str | None) -> tuple[str, int]:
+    """Blast radius straight from git, so nobody has to remember or guess it."""
+    if not base:
+        return "n/a — no diff (doc or plan only)", 0
+    try:
+        out = subprocess.run(
+            ["git", "diff", "--numstat", f"{base}...HEAD"],
+            capture_output=True, text=True, check=True,
+        ).stdout
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return "n/a — diff unavailable", 0
+    rows = [r.split("\t") for r in out.splitlines() if r.strip()]
+    loc = sum(int(a) + int(d) for a, d, _ in rows if a.isdigit() and d.isdigit())
+    return f"{len(rows)} files · {loc} LOC", loc
+
+
+def threat(loc: int, state: dict[str, Any]) -> int:
+    score = 1
+    score += 2 if state.get("kind") == "interface" else 0
+    score += min(2, loc // 100)
+    score += 1 if state.get("irreversible") else 0
+    score += 1 if state.get("sensitive") else 0
+    return min(6, score)
+
+
+def tally(state: dict[str, Any]) -> dict[str, Any]:
+    votes = [u["vote"] for u in state["units"]]
+    yes = sum(1 for v in votes if v in ("approve", "conditional"))
+    cond = any(v == "conditional" for v in votes)
+    bloc = max(yes, 3 - yes)
+    # Deadlock is a judgment the model makes (contested conditions), not
+    # arithmetic — with three units and two blocs one side always has a majority.
+    if state.get("deadlock"):
+        head, kanji, glyph = "D E A D L O C K", "膠着", "◌"
+    elif yes == 3 and not cond:
+        head, kanji, glyph = "M O T I O N   C A R R I E D", "可決", "⬢"
+    elif yes >= 2:
+        head, kanji, glyph = "M O T I O N   C A R R I E D", "条件付" if cond else "可決", "◐" if cond else "⬢"
+    else:
+        head, kanji, glyph = "M O T I O N   D E N I E D", "否決", "⬡"
+    return {"yes": yes, "head": head, "kanji": kanji, "glyph": glyph,
+            "score": f"{yes} : {3 - yes}", "breach": bloc / 3}
+
+
+def find(state: dict[str, Any], uid: str) -> dict[str, Any]:
+    return next(u for u in state["units"] if u["id"] == uid)
+
+
+def boot() -> str:
+    rows = [pad(f"  ▸ {pad(label, 15)} {jp} ", 42, ".") + " ONLINE"
+            for _, label, jp, _ in UNITS]
+    return "\n".join([
+        "  MAGI SYSTEM  ver 2.0.7 ................ INITIALISING",
+        *rows,
+        "  ▸ casting bodies ...................... 3 / 3",
+        "  CODE : 001                            審 議 開 始",
+    ])
+
+
+def header(state: dict[str, Any]) -> str:
+    right = [
+        "N  E  R  V",
+        "─" * 36,
+        f"議案 — {state['proposal']}",
+        f"CODE : 001 · 審議中 · 3 units casting",
+    ]
+    pad = max(len(line) for line in LEAF) + 9
+    out = []
+    for i, line in enumerate(LEAF):
+        txt = right[i - 2] if 2 <= i < 2 + len(right) else ""
+        out.append(f"{line:<{pad}}{txt}".rstrip())
+    return "\n".join(out)
+
+
+def target(state: dict[str, Any]) -> str:
+    radius, loc = blast(state.get("base"))
+    t = threat(loc, state)
+    orange = state.get("pattern") == "orange"
+    pattern = "◌ ORANGE" if orange else "⬢ BLUE"
+    kind = state.get("kind", "behaviour")
+    last = (f"│  ▸ interpreted as: {state.get('interpretation', '—')}" if orange
+            else "│  ▸ MAGI deliberation authorised")
+    return "\n".join([
+        "┌" + "─" * 58,
+        f"│  ⚠ TARGET ACQUIRED                    PATTERN : {pattern}",
+        "├" + "─" * 58,
+        f"│  designation ....... {state['proposal']}",
+        f"│  classification .... {KINDS[kind]}  ·  {kind}",
+        f"│  blast radius ...... {radius}",
+        f"│  threat ............ {'▰' * t}{'▱' * (6 - t)}  {t} / 6",
+        last,
+        "└" + "─" * 58,
+    ])
+
+
+def field(state: dict[str, Any]) -> str:
+    """Renders between rounds — it is the reason Round 2 is happening."""
+    b = tally(state)["breach"]
+    n = round(b * 10)
+    node = [GLYPH["approve"] if i < n else GLYPH["reject"] for i in range(10)]
+    status = "field collapsed" if b == 1 else "pattern breached"
+    return "\n".join([
+        f"          {node[0]}───{node[1]}───{node[2]}",
+        "         ╱ ╲ ╱ ╲ ╱ ╲          A . T .  F I E L D",
+        f"        {node[3]}───{node[4]}───{node[5]}───{node[6]}         {bar(b, 18)}  {round(b * 100)} %",
+        f"         ╲ ╱ ╲ ╱ ╲ ╱          {status} — {tally(state)['score']}",
+        f"          {node[7]}───{node[8]}───{node[9]}           ▸ 交差審問 開始 — Round 2",
+    ])
+
+
+def trinity(state: dict[str, Any]) -> str:
+    t = tally(state)
+    mel, balt, cas = (find(state, u[0]) for u in UNITS)
+
+    def cell(u: dict[str, Any]) -> str:
+        return f"{GLYPH[u['vote']]}  {KANJI[u['vote']]}"
+
+    return "\n".join([
+        "                 ╭───────────────────╮",
+        "                 │   MELCHIOR · 1    │",
+        f"                 │   {pad(cell(mel), 15)} │",
+        "                 ╰─────────╥─────────╯",
+        "                           ║",
+        "        ╭──────────────────╨──────────────────╮",
+        f"        ║   {pad(state['proposal'][:33], 33)} ║",
+        f"        ║   ⟨ {t['score']} ⟩  {pad(t['kanji'], 22)} ║",
+        "        ╰────────╥───────────────────╥────────╯",
+        "                 ║                   ║",
+        "   ╭─────────────╨─────╮   ╭─────────╨─────────╮",
+        "   │   BALTHASAR · 2   │   │    CASPER · 3     │",
+        f"   │   {pad(cell(balt), 15)} │   │    {pad(cell(cas), 14)} │",
+        "   ╰───────────────────╯   ╰───────────────────╯",
+    ])
+
+
+def transcript(state: dict[str, Any]) -> str:
+    out = ["╔" + "═" * 58, "║  M A G I   ·   D E L I B E R A T I O N"]
+    for uid, label, jp, en in UNITS:
+        u = find(state, uid)
+        head = f"╟─ {GLYPH[u['vote']]} {label} · {jp} {en} "
+        out.append(head + "─" * max(0, 59 - dw(head)))
+        for line in u["position"].splitlines():
+            out.append(f"║  {line}")
+        vote = f"VOTE : {GLYPH[u['vote']]} {KANJI[u['vote']]} {u['vote'].upper()}"
+        out.append("║" + " " * max(0, 57 - dw(vote)) + vote)
+    out.append("╚" + "═" * 58)
+    return "\n".join(out)
+
+
+def umbilical(state: dict[str, Any]) -> str:
+    """Round state is real; a token budget is not — so the cable tracks rounds."""
+    if state.get("rounds", 1) < 2:
+        return ""
+    return "  ⚡ UMBILICAL ...... SEVERED       内部電源 · round 2 of 2"
+
+
+def clock(state: dict[str, Any]) -> str:
+    secs = int(time.time() - state.get("started", time.time()))
+    text = f"{secs // 60:02d}:{secs % 60:02d}"
+    rows = ["   " + " ".join(SEG[c][r] for c in text) for r in range(3)]
+    rows[0] += "      TIME TO DECISION"
+    rows[1] += f"      {text} · {state.get('rounds', 1)} round(s) · 3 units"
+    return "\n".join(rows)
+
+
+def consensus(state: dict[str, Any]) -> str:
+    t = tally(state)
+    g = "".join(GLYPH[find(state, u[0])["vote"]] for u in UNITS)
+    secs = int(time.time() - state.get("started", time.time()))
+    return (f"MAGI  {g}  {t['score']}  ▐{bar(t['breach'])}▌ {t['kanji']}   "
+            f"{secs // 60:02d}:{secs % 60:02d} · {state.get('rounds', 1)} round(s)")
+
+
+def verdict(state: dict[str, Any]) -> str:
+    t = tally(state)
+    top, bot = "▛" + "▀" * 52, "▙" + "▄" * 52
+    if state.get("deadlock"):
+        votes = " ┃ ".join(
+            f"{label.replace(' · ', '·')} {GLYPH[find(state, uid)['vote']]} {KANJI[find(state, uid)['vote']]}"
+            for uid, label, _, _ in UNITS)
+        return "\n".join([
+            top,
+            "▌  緊 急 事 態     D E A D L O C K     CODE : 601",
+            "▌",
+            f"▌  {votes}",
+            f"▌  ▸ {state['holdout']} refuses to yield — {state['aspect']}",
+            f"▌  ▸ unresolved axis: {state['axis']}",
+            "▌  ▸ tie-break required · escalate to operator",
+            bot,
+        ])
+    lines = [top, f"▌  {t['glyph']}  {' '.join(t['kanji'])}      {t['head']}      {t['score']}",
+             f"▌  ▸ {state['decision']}"]
+    if state.get("conditions"):
+        lines.append("▌  ▸ conditions: " + " · ".join(state["conditions"]))
+    lines.append(bot)
+    return "\n".join(lines)
+
+
+def selftest() -> None:
+    def votes(*vs: str) -> dict[str, Any]:
+        return {"units": [{"id": u[0], "vote": v, "position": "x"}
+                          for u, v in zip(UNITS, vs)],
+                "proposal": "p", "kind": "behaviour", "decision": "d"}
+
+    assert tally(votes("approve", "approve", "approve"))["kanji"] == "可決"
+    assert tally(votes("approve", "conditional", "reject"))["kanji"] == "条件付"
+    assert tally(votes("reject", "reject", "approve"))["kanji"] == "否決"
+    assert tally(votes("approve", "approve", "reject"))["breach"] == 2 / 3
+    assert tally(dict(votes("approve", "approve", "approve"), deadlock=True))["kanji"] == "膠着"
+    assert threat(250, {"kind": "interface", "irreversible": True}) == 6
+    assert threat(0, {"kind": "behaviour"}) == 1
+    assert dw("科学者") == 6 and dw("abc") == 3
+    assert len(bar(0.5)) == BAR and bar(1.0).count("█") == BAR
+    assert all(len(r) == 3 for g in SEG.values() for r in g), "seg font must be 3 wide"
+
+    # Trinity stacks several boxes at different indents, so rectangularity is
+    # per-box: lines sharing an indent are the same box and must share a width.
+    for block in (trinity(votes("approve", "conditional", "reject")),
+                  target(dict(votes("approve", "approve", "approve"), pattern="blue"))):
+        boxes: dict[int, set[int]] = {}
+        for line in block.splitlines():
+            if line.strip().endswith(("│", "║", "╮", "╯")):
+                boxes.setdefault(len(line) - len(line.lstrip()), set()).add(dw(line))
+        for indent, widths in boxes.items():
+            assert len(widths) == 1, f"ragged box at indent {indent}: {widths}"
+    print("ok")
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(description="Render MAGI deliberation chrome.")
+    ap.add_argument("phase", choices=["open", "field", "close", "selftest"])
+    ap.add_argument("--state", type=Path)
+    args = ap.parse_args()
+
+    if args.phase == "selftest":
+        return selftest()
+    if not args.state:
+        ap.error("--state is required")
+
+    state = json.loads(args.state.read_text())
+    if args.phase == "open":
+        # Stamping the clock here keeps elapsed time out of the model's bookkeeping.
+        state["started"] = time.time()
+        args.state.write_text(json.dumps(state, indent=2, ensure_ascii=False))
+        blocks = [boot(), header(state), target(state)]
+    elif args.phase == "field":
+        blocks = [field(state)]
+    else:
+        blocks = [umbilical(state), trinity(state), transcript(state),
+                  clock(state), consensus(state), verdict(state)]
+    print("\n\n".join(b for b in blocks if b))
+
+
+if __name__ == "__main__":
+    main()
