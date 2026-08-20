@@ -53,6 +53,9 @@ Each `Task` prompt contains:
   its lens, the merits and risks it sees, and a **VOTE: APPROVE | REJECT |
   CONDITIONAL** (with specific flip-conditions if CONDITIONAL).
 
+Before the first dispatch, print the **boot block** and run `date +%s` — the
+decision clock starts here and is read again at the verdict.
+
 Collect the three positions and their initial votes.
 
 **If Round 1 is unanimous** (all APPROVE, or all REJECT), skip Round 2 — the
@@ -86,33 +89,126 @@ treating **CONDITIONAL as a conditional-APPROVE**:
 
 ### Presentation
 
-Report a **compact transcript** — a short header per unit with its final
-position and vote — then the verdict line. MAGI-terminal aesthetic is welcome;
-keep the ASCII light.
+The MAGI render in full NERV terminal chrome — four fixed blocks, in order:
+**boot → header → transcript → verdict**. Reproduce the box-drawing character
+for character; these are frames, not suggestions.
+
+Colour, where the surface supports it: orange `#FF6A00` on black for rails and
+frames, green `#7FFF6A` for telemetry, red `#E01B24` for `緊急事態` **only**.
+Nothing else gets colour.
+
+**Vote glyphs** — use these everywhere; never spell a vote where a glyph fits.
+
+| Vote           | Glyph | Kanji  | Human aspect (for the deadlock line) |
+| -------------- | ----- | ------ | ------------------------------------ |
+| APPROVE        | `⬢`   | 可決   | Melchior-1 → 科学者 の 部分          |
+| CONDITIONAL    | `◐`   | 条件付 | Balthasar-2 → 母 の 部分             |
+| REJECT         | `⬡`   | 否決   | Casper-3 → 女 の 部分                |
+| (deliberating) | `◌`   | 審議中 | —                                    |
+
+#### 1 · Boot — print before dispatching Round 1
+
+Start the decision clock (`date +%s`) on the same beat.
 
 ```text
-╔════════════════════════════════════════╗
-║  MAGI  ·  DELIBERATION  ·  <proposal>  ║
-╚════════════════════════════════════════╝
-
-── MELCHIOR-1 · The Scientist ──────────
-<final position, 1–2 lines>            VOTE: APPROVE
-
-── BALTHASAR-2 · The Engineer ──────────
-<final position, 1–2 lines>            VOTE: CONDITIONAL
-
-── CASPER-3 · The User ─────────────────
-<final position, 1–2 lines>            VOTE: APPROVE
-
-────────────────────────────────────────
-VERDICT: CONDITIONAL APPROVE (2 APPROVE · 1 CONDITIONAL)
-Conditions to satisfy:
-  - <condition from Balthasar-2>
+  MAGI SYSTEM  ver 2.0.7 ................ INITIALISING
+  ▸ MELCHIOR · 1   科学者 ............... ONLINE
+  ▸ BALTHASAR · 2  母 ................... ONLINE
+  ▸ CASPER · 3     女 ................... ONLINE
+  ▸ casting bodies ...................... 3 / 3
+  CODE : 001                            審 議 開 始
 ```
 
-State the **resulting decision** in one line. If CONDITIONAL, list the exact
-conditions that would make it a clean APPROVE. If DEADLOCK, say so plainly and
-name the unresolved axis of disagreement.
+#### 2 · Header — opens the transcript
+
+```text
+        ╱▏
+      ╱███▏
+    ╱██████▏         N  E  R  V
+  ╱█████████▏        ────────────────────────────────────
+▔▔╲████████▏         議案 — <one-line proposal>
+    ╲██████▏         CODE : 001 · 審議中 · 3 units casting
+      ╲████▏
+        ╲██▏
+```
+
+#### 3 · Transcript — one rail, three units
+
+Final votes only (Round 2 if it ran, else Round 1). Position stays 1–2 lines.
+
+```text
+╔══════════════════════════════════════════════════════════
+║  M A G I   ·   D E L I B E R A T I O N
+╟─ ⬢ MELCHIOR · 1 · 科学者 SCIENTIST ───────────────────────
+║  <position, 1–2 lines>
+║                                     VOTE : ⬢ 可決 APPROVE
+╟─ ◐ BALTHASAR · 2 · 母 ENGINEER ───────────────────────────
+║  <position, 1–2 lines>
+║                                 VOTE : ◐ 条件付 CONDITIONAL
+╟─ ⬡ CASPER · 3 · 女 USER ──────────────────────────────────
+║  <position, 1–2 lines>
+║                                      VOTE : ⬡ 否決 REJECT
+╚══════════════════════════════════════════════════════════
+```
+
+#### 4 · Decision clock — sits above the verdict
+
+Read `date +%s` again, subtract the boot timestamp, render `MM:SS` in the
+seven-segment font below. Each glyph is exactly 3 columns wide and 3 rows tall,
+so digits stack into a strip without alignment drift.
+
+```text
+ 0     1     2     3     4     5     6     7     8     9     :
+┏━┓    ╻   ╺━┓   ╺━┓   ╻ ╻   ┏━╸   ┏━╸   ╺━┓   ┏━┓   ┏━┓
+┃ ┃    ┃   ┏━┛   ╺━┫   ┗━┫   ┗━┓   ┣━┓     ┃   ┣━┫   ┗━┫    ▪
+┗━┛    ╹   ┗━╸   ╺━┛     ╹   ╺━┛   ┗━┛     ╹   ┗━┛   ╺━┛    ▪
+```
+
+Rendered — here `01:32`:
+
+```text
+   ┏━┓  ╻     ╺━┓ ╺━┓
+   ┃ ┃  ┃  ▪  ┏━┛ ╺━┫      TIME TO DECISION
+   ┗━┛  ╹  ▪  ┗━╸ ╺━┛      01:32 · 2 rounds · 26.4k tok
+```
+
+#### 5 · Verdict — carried, denied, or deadlocked
+
+**Carried** (`UNANIMOUS APPROVE`, `MAJORITY APPROVE`, `CONDITIONAL`):
+
+```text
+▛▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
+▌  ⬢  可 決      M O T I O N   C A R R I E D      2 : 1
+▌  ▸ <resulting decision, one line>
+▌  ▸ conditions: <c1> · <c2>          ← omit the line if none
+▙▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+```
+
+**Denied** (`REJECTED`) — same frame, swapped head:
+
+```text
+▌  ⬡  否 決      M O T I O N   D E N I E D       1 : 2
+```
+
+**Deadlock** — red, `CODE : 601`, and it replaces the verdict box entirely:
+
+```text
+▛▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
+▌  緊 急 事 態     D E A D L O C K     CODE : 601
+▌
+▌  MELCHIOR·1 ⬢ 可決 ┃ BALTHASAR·2 ⬡ 否決 ┃ CASPER·3 ⬡ 否決
+▌  ▸ CASPER · 3 refuses to yield — 女 の 部分
+▌  ▸ unresolved axis: <the actual disagreement, one line>
+▌  ▸ tie-break required · escalate to operator
+▙▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+```
+
+The `refuses to yield` line names the **holdout unit and its human aspect** —
+that is the whole point of the deadlock, not the tally. Pick the unit whose
+vote blocks resolution; if two block it, name both on one line.
+
+Under the verdict box, state the resulting decision in one plain line outside
+the chrome. On CONDITIONAL, that line says what would make it a clean APPROVE.
 
 ## Two modes of use
 
@@ -133,3 +229,5 @@ name the unresolved axis of disagreement.
 - CONDITIONAL must carry concrete, checkable conditions — never a vague "maybe".
 - Keep the transcript crisp: one short header + position + vote per unit, then
   the verdict. Don't re-narrate each round in full.
+- The four chrome blocks are **fixed frames** — reproduce the box-drawing
+  character for character. Prose stays crisp; the chrome carries the drama.
