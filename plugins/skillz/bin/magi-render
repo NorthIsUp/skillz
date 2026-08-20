@@ -30,8 +30,22 @@ def dw(text: str) -> int:
 def pad(text: str, width: int, fill: str = " ") -> str:
     return text + fill * max(0, width - dw(text))
 
-GLYPH = {"approve": "⬢", "conditional": "◐", "reject": "⬡"}
-KANJI = {"approve": "可決", "conditional": "条件付", "reject": "否決"}
+# Canonical MAGI states. Note the verdict rule is unanimity, not majority: a
+# single 拒絶 sinks the motion, which is stricter than a 2-1 tally would be.
+STATE = {
+    "error":       ("✖", "誤差", "ERR"),
+    "info":        ("◍", "情報", "INF"),
+    "reject":      ("⬡", "拒絶", "NAY"),
+    "conditional": ("◐", "状態", "CON"),
+    "approve":     ("⬢", "合意", "YES"),
+}
+GLYPH = {k: v[0] for k, v in STATE.items()}
+KANJI = {k: v[1] for k, v in STATE.items()}
+
+
+def badge(key: str) -> str:
+    g, kanji, eng = STATE[key]
+    return f"{g} · {kanji} · {eng}"
 UNITS = [
     ("melchior", "MELCHIOR · 1", "科学者", "SCIENTIST"),
     ("balthasar", "BALTHASAR · 2", "母", "ENGINEER"),
@@ -105,22 +119,29 @@ def threat(loc: int, state: dict[str, Any]) -> int:
 
 
 def tally(state: dict[str, Any]) -> dict[str, Any]:
-    votes = [u["vote"] for u in state["units"]]
-    yes = sum(1 for v in votes if v in ("approve", "conditional"))
-    cond = any(v == "conditional" for v in votes)
-    bloc = max(yes, 3 - yes)
-    # Deadlock is a judgment the model makes (contested conditions), not
-    # arithmetic — with three units and two blocs one side always has a majority.
-    if state.get("deadlock"):
-        head, kanji, glyph = "D E A D L O C K", "膠着", "◌"
-    elif yes == 3 and not cond:
-        head, kanji, glyph = "M O T I O N   C A R R I E D", "可決", "⬢"
-    elif yes >= 2:
-        head, kanji, glyph = "M O T I O N   C A R R I E D", "条件付" if cond else "可決", "◐" if cond else "⬢"
+    votes = [u.get("vote") for u in state["units"]]
+    if "error" in votes:
+        key = "error"
+    elif state.get("info"):
+        key = "info"
+    elif "reject" in votes:
+        key = "reject"
+    elif "conditional" in votes:
+        key = "conditional"
     else:
-        head, kanji, glyph = "M O T I O N   D E N I E D", "否決", "⬡"
-    return {"yes": yes, "head": head, "kanji": kanji, "glyph": glyph,
-            "score": f"{yes} : {3 - yes}", "breach": bloc / 3}
+        key = "approve"
+    if state.get("deadlock"):
+        key = "error"
+    yes = sum(1 for v in votes if v in ("approve", "conditional"))
+    head = {"approve": "M O T I O N   C A R R I E D",
+            "conditional": "M O T I O N   C A R R I E D",
+            "reject": "M O T I O N   D E N I E D",
+            "info": "U N C L A S S I F I E D",
+            "error": "D E A D L O C K"}[key]
+    return {"yes": yes, "key": key, "head": head, "kanji": KANJI[key],
+            "glyph": GLYPH[key], "badge": badge(key),
+            "score": f"{yes} : {len(votes) - yes}",
+            "breach": max(yes, len(votes) - yes) / max(1, len(votes))}
 
 
 def find(state: dict[str, Any], uid: str) -> dict[str, Any]:
@@ -198,49 +219,43 @@ def field(state: dict[str, Any]) -> str:
     ])
 
 
-def trapezoid(lines: list[str], top: int, flip: bool = False) -> list[str]:
-    """One MAGI panel. Normally widens two columns per row; flipped it tapers
-    downward, which is the shape the top unit has on the real plate."""
-    height = len(lines) + 2
-    # Reversing here keeps the unit name above its vote once the rows flip.
-    lines = lines[::-1] if flip else lines
-    rows = [(" " * (height - 1) + "╱" + "▔" * top + "╲", None)]
-    for i, text in enumerate(lines, 1):
-        rows.append((" " * (height - 1 - i), text))
-    rows.append(("╱" + "▁" * (top + 2 * (height - 1)) + "╲", None))
-    if flip:
-        rows.reverse()
-        rows = [(r.replace("╱", "\x00").replace("╲", "╱").replace("\x00", "╲")
-                 .replace("▔", "\x00").replace("▁", "▔").replace("\x00", "▁"), t)
-                for r, t in rows]
-    out = []
-    for i, (chrome, text) in enumerate(rows):
-        if text is None:
-            out.append(chrome)
-            continue
-        width = top + 2 * (len(rows) - 1 - i if flip else i)
-        gap = width - dw(text)
-        edge = ("╲", "╱") if flip else ("╱", "╲")
-        out.append(chrome + edge[0] + " " * (gap // 2) + text + " " * (gap - gap // 2) + edge[1])
-    return out
+HEX_W = 16
+HEX_BOX = HEX_W + 4   # text rows carry a wall each side of a two-space inset
+
+
+def hexagon(lines: list[str]) -> list[str]:
+    """Flat-topped hex — the same silhouette as the A.T. Field lattice, so the
+    plate and the field read as one system."""
+    def mid(t: str) -> str:
+        gap = HEX_W + 2 - dw(t)
+        return " " * (gap // 2) + t + " " * (gap - gap // 2)
+
+    return [" ╱" + "▔" * HEX_W + "╲ ",
+            *(f"▕{mid(t)}▏" for t in lines),
+            " ╲" + "▁" * HEX_W + "╱ "]
 
 
 def trinity(state: dict[str, Any]) -> str:
-    """Canonical MAGI plate: Balthasar above, Casper and Melchior below, the
-    core in the notch between them."""
+    """Canonical plate: Balthasar above, Casper and Melchior below, core between.
+    Every cell is the same size — no unit outranks another by area."""
     t = tally(state)
     mel, balt, cas = (find(state, u[0]) for u in UNITS)
+    gap = 10
 
-    def cell(u: dict[str, Any]) -> str:
-        return f"{GLYPH[u['vote']]}  {KANJI[u['vote']]}"
+    def cell(u: dict[str, Any], label: str) -> list[str]:
+        return hexagon([label, badge(u["vote"])])
 
-    rows = [" " * 12 + r for r in
-            trapezoid(["BALTHASAR · 2", cell(balt)], 18, flip=True)]
-    for line in ("M A G I", f"⟨ {t['score']} ⟩", t["kanji"]):
-        rows.append(" " * (25 - dw(line) // 2) + line)
-    for left, right in zip(trapezoid(["CASPER · 3", cell(cas)], 16),
-                           trapezoid(["MELCHIOR · 1", cell(mel)], 16)):
-        rows.append(left + " " * (25 - dw(left)) + right)
+    def centred(text: str, width: int) -> str:
+        space = width - dw(text)
+        return " " * (space // 2) + text + " " * (space - space // 2)
+
+    rows = [" " * ((HEX_BOX + gap) // 2) + r for r in cell(balt, "BALTHASAR · 2")]
+    rows.append(centred("M A G I", HEX_BOX * 2 + gap))
+    core = ["", f"⟨ {t['score']} ⟩", "", ""]   # badge below carries the kanji
+    for line, left, right in zip(core, cell(cas, "CASPER · 3"),
+                                 cell(mel, "MELCHIOR · 1")):
+        rows.append(left + centred(line, gap) + right)
+    rows.append(centred(t["badge"], HEX_BOX * 2 + gap))
     return "\n".join(r.rstrip() for r in rows)
 
 
@@ -252,7 +267,7 @@ def transcript(state: dict[str, Any]) -> str:
         out.append(head + "─" * max(0, 59 - dw(head)))
         for line in u["position"].splitlines():
             out.append(f"║  {line}")
-        vote = f"VOTE : {GLYPH[u['vote']]} {KANJI[u['vote']]} {u['vote'].upper()}"
+        vote = f"VOTE : {badge(u['vote'])}"
         out.append("║" + " " * max(0, 57 - dw(vote)) + vote)
     out.append("╚" + "═" * 58)
     return "\n".join(out)
@@ -329,11 +344,15 @@ def selftest() -> None:
                           for u, v in zip(UNITS, vs)],
                 "proposal": "p", "kind": "behaviour", "decision": "d"}
 
-    assert tally(votes("approve", "approve", "approve"))["kanji"] == "可決"
-    assert tally(votes("approve", "conditional", "reject"))["kanji"] == "条件付"
-    assert tally(votes("reject", "reject", "approve"))["kanji"] == "否決"
+    # Unanimity, not majority: one NAY sinks it even at 2-1.
+    assert tally(votes("approve", "approve", "approve"))["key"] == "approve"
+    assert tally(votes("approve", "conditional", "approve"))["key"] == "conditional"
+    assert tally(votes("approve", "approve", "reject"))["key"] == "reject"
+    assert tally(votes("error", "approve", "approve"))["key"] == "error"
+    assert tally(dict(votes("approve", "approve", "approve"), info=True))["key"] == "info"
     assert tally(votes("approve", "approve", "reject"))["breach"] == 2 / 3
-    assert tally(dict(votes("approve", "approve", "approve"), deadlock=True))["kanji"] == "膠着"
+    assert badge("conditional") == "◐ · 状態 · CON"
+    assert all(len(e) == 3 for _, _, e in STATE.values()), "english must be three letters"
     assert threat(250, {"kind": "interface", "irreversible": True}) == 6
     assert threat(0, {"kind": "behaviour"}) == 1
     assert dw("科学者") == 6 and dw("abc") == 3
@@ -357,10 +376,12 @@ def selftest() -> None:
     assert "casting" in status(partial) and "APPROVE" not in status(partial), "no vote content in interim"
     assert roster(partial) == 3 and roster(None) == 3
 
-    panel = trapezoid(["a", "b"], 10)
-    assert [dw(r.strip()) for r in panel] == [12, 14, 16, 18], "panel must widen by two"
+    cells = hexagon(["a", "b"])
+    assert len({dw(r.rstrip()) for r in cells[1:3]}) == 1, "hex cells must match in size"
     plate = trinity(votes("approve", "conditional", "reject"))
     assert "MELCHIOR · 1" in plate and "⟨ 2 : 1 ⟩" in plate
+    widths = {dw(r) for r in plate.splitlines() if r.startswith("▕")}
+    assert len(widths) == 1, f"every unit row must be one width: {widths}"
 
     for block in (target(dict(votes("approve", "approve", "approve"), pattern="blue")),):
         boxes: dict[int, set[int]] = {}
