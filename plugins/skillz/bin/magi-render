@@ -45,7 +45,8 @@ KANJI = {k: v[1] for k, v in STATE.items()}
 
 def badge(key: str) -> str:
     g, kanji, eng = STATE[key]
-    return f"{g} · {kanji} · {eng}"
+    # Kanji first: it is the heaviest mark, so it anchors the cell's left edge.
+    return f"{kanji} · {g} · {eng}"
 UNITS = [
     ("melchior", "MELCHIOR · 1", "科学者", "SCIENTIST"),
     ("balthasar", "BALTHASAR · 2", "母", "ENGINEER"),
@@ -351,7 +352,7 @@ def selftest() -> None:
     assert tally(votes("error", "approve", "approve"))["key"] == "error"
     assert tally(dict(votes("approve", "approve", "approve"), info=True))["key"] == "info"
     assert tally(votes("approve", "approve", "reject"))["breach"] == 2 / 3
-    assert badge("conditional") == "◐ · 状態 · CON"
+    assert badge("conditional") == "状態 · ◐ · CON"
     assert all(len(e) == 3 for _, _, e in STATE.values()), "english must be three letters"
     assert threat(250, {"kind": "interface", "irreversible": True}) == 6
     assert threat(0, {"kind": "behaviour"}) == 1
