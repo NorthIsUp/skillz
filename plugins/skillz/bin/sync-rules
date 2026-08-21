@@ -10,6 +10,8 @@
 # rules, so re-printing them would be duplicate context.
 set -uo pipefail
 
+# rules/*.md are symlinks into skills/<name>/SKILL.md so each rule is also an
+# invocable skill; cp follows them, so the mirror gets real files.
 src="${CLAUDE_PLUGIN_ROOT:?}/rules"
 dst="${HOME}/.claude/rules"
 mkdir -p "$dst" || exit 0
