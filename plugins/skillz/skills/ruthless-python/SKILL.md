@@ -9,6 +9,8 @@ description: |
   for related phrases like "make this more Pythonic", "type this
   properly", "clean up this Python", "add types", "async this", or
   reviewing a pull request that changes Python code.
+paths:
+  - "**/*.py"
 ---
 
 # Ruthless Python
@@ -98,6 +100,21 @@ to cases the rule doesn't literally cover.
 
   Same rule for the calls that pickle without saying so: `shelve`, `dill`, `joblib`, `pandas.to_pickle`, `numpy.load(allow_pickle=True)`, `torch.save` of a whole model. Cross-process handoff is JSON or a real format (Parquet, Arrow, safetensors). What a framework does inside its own storage layer isn't your problem — this is about the serialization _you_ write.
 
+- **Rule 11 — Time is `datetime`, `date`, `timedelta` — never a bare `str` or number.** A duration typed `int` doesn't say whether it's seconds or milliseconds, and a timestamp typed `str` doesn't say whether it's ISO, epoch, or naive-local; both only fail once, in production, far from where the unit was decided. Keep the rich type as the internal representation and convert at the edge that demands a primitive:
+
+  ```python
+  FIVE_MINUTES = timedelta(minutes=5)
+  cache.set(key, value, ttl=FIVE_MINUTES.total_seconds())   # convert at the boundary, once
+
+  class Job(BaseModel):
+      started_at: datetime          # not `str`, not an epoch int
+      timeout: timedelta = timedelta(seconds=30)
+  ```
+
+  - Arithmetic then reads as arithmetic (`deadline = started_at + timeout`), pydantic parses and serializes both directions for free, and the type checker catches a seconds/milliseconds mix that no amount of naming discipline would.
+  - Datetimes are timezone-aware (`datetime.now(UTC)`, never `utcnow()`); a naive one needs a comment saying whose clock it is.
+  - If an int or str is required for API compatibility, the name carries the unit (`datetime_iso`, `epoch_ts`, `epoch_ms`, `timeout_seconds`, `ttl_ms`).
+
 ## Library defaults
 
 Reach for these first; don't introduce alternatives without a reason:
@@ -155,30 +172,33 @@ See `references/pydantic.md` for model factory patterns.
 
 ## Anti-patterns (reject on sight)
 
-| Smell                                          | Replace with                                      |
-| ---------------------------------------------- | ------------------------------------------------- |
-| `def f(x):` (no annotations)                   | Full signature with types                         |
-| `-> dict[str, Any]` / `-> list[dict]`          | `TypedDict` or pydantic model                     |
-| `def helper(model: M, ...)` in a utils module  | A method on `M`                                   |
-| `def _make_user(...) -> User` in a test file   | `@pytest.fixture` returning the factory           |
-| Three-arm `if isinstance(x, A): ... elif ...`  | `match x: case A(): ...`                          |
-| `asyncio.gather(*tasks)` for fan-out           | `async with asyncio.TaskGroup() as tg:`           |
-| `asyncio.create_task(f())` then forgetting it  | `tg.create_task(f())` inside a task group         |
-| `asyncio.wait_for(...)` for a deadline         | `async with asyncio.timeout(...):`                |
-| `threading.Thread` for I/O concurrency         | async + task group                                |
-| `time.sleep` in async code                     | `await asyncio.sleep(...)`                        |
-| `open(...)` / `Path.read_text()` in async code | `await anyio.Path(p).read_text()`                 |
-| `os.path` / `pathlib` for disk access          | `anyio.Path` (plain `Path` for path algebra only) |
-| Hand-rolled `async for` accumulation loop      | `import asyncstdlib as a` → `a.map` / `a.filter`  |
-| `for x in await collect_all(): ...`            | `async for x in stream: ...` (via `asyncstdlib`)  |
-| Plain dict as a data carrier across modules    | pydantic model (or `TypedDict` if internal-only)  |
-| `**kwargs: Any` for config                     | A `BaseModel` for config; pass the model          |
-| `@property` doing real I/O                     | Make it an explicit `async def` method            |
-| `cast(T, x)` to silence pyright                | Fix the type at the source, or `TypeGuard`        |
-| `pickle` / `shelve` / `dill` for persistence   | `model_dump_json()` + `model_validate_json()`     |
-| `pandas.to_pickle`, `numpy` `allow_pickle`     | Parquet / Arrow / `npz` without pickle            |
-| A model instance as a cache or queue payload   | A versioned pydantic schema, dumped to JSON       |
-| Stored blob with no version field              | A `v: Literal[N]` on the model                    |
+| Smell                                           | Replace with                                      |
+| ----------------------------------------------- | ------------------------------------------------- |
+| `def f(x):` (no annotations)                    | Full signature with types                         |
+| `-> dict[str, Any]` / `-> list[dict]`           | `TypedDict` or pydantic model                     |
+| `def helper(model: M, ...)` in a utils module   | A method on `M`                                   |
+| `def _make_user(...) -> User` in a test file    | `@pytest.fixture` returning the factory           |
+| Three-arm `if isinstance(x, A): ... elif ...`   | `match x: case A(): ...`                          |
+| `asyncio.gather(*tasks)` for fan-out            | `async with asyncio.TaskGroup() as tg:`           |
+| `asyncio.create_task(f())` then forgetting it   | `tg.create_task(f())` inside a task group         |
+| `asyncio.wait_for(...)` for a deadline          | `async with asyncio.timeout(...):`                |
+| `threading.Thread` for I/O concurrency          | async + task group                                |
+| `time.sleep` in async code                      | `await asyncio.sleep(...)`                        |
+| `open(...)` / `Path.read_text()` in async code  | `await anyio.Path(p).read_text()`                 |
+| `os.path` / `pathlib` for disk access           | `anyio.Path` (plain `Path` for path algebra only) |
+| Hand-rolled `async for` accumulation loop       | `import asyncstdlib as a` → `a.map` / `a.filter`  |
+| `for x in await collect_all(): ...`             | `async for x in stream: ...` (via `asyncstdlib`)  |
+| Plain dict as a data carrier across modules     | pydantic model (or `TypedDict` if internal-only)  |
+| `**kwargs: Any` for config                      | A `BaseModel` for config; pass the model          |
+| `@property` doing real I/O                      | Make it an explicit `async def` method            |
+| `cast(T, x)` to silence pyright                 | Fix the type at the source, or `TypeGuard`        |
+| `pickle` / `shelve` / `dill` for persistence    | `model_dump_json()` + `model_validate_json()`     |
+| `pandas.to_pickle`, `numpy` `allow_pickle`      | Parquet / Arrow / `npz` without pickle            |
+| A model instance as a cache or queue payload    | A versioned pydantic schema, dumped to JSON       |
+| `timeout: int` / `ttl: int` (unit only in docs) | `timeout: timedelta`; `timeout_seconds` at an API |
+| `created_at: str` / epoch `int` on a model      | `created_at: datetime` (tz-aware)                 |
+| `datetime.utcnow()`                             | `datetime.now(UTC)`                               |
+| Stored blob with no version field               | A `v: Literal[N]` on the model                    |
 
 ## Reviewing Python (PRs, diffs)
 
