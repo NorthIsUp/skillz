@@ -1,6 +1,10 @@
 amends "package://github.com/jdx/hk/releases/download/v1.39.0/hk@1.39.0#/Config.pkl"
 import "package://github.com/jdx/hk/releases/download/v1.39.0/hk@1.39.0#/Builtins.pkl"
 
+// Vendored upstream skills keep their upstream formatting so they stay
+// diffable against the release they came from (see plugins/skillz/vendor/).
+local vendored = List("plugins/skillz/skills/superpowers-*/**")
+
 local linters = new Mapping<String, Step> {
     // Symlinked-in skills have a SKILL.md that points into ~/src/dotfiles —
     // machine-specific, must never be committed. check ERRORS if one is
@@ -15,11 +19,14 @@ local linters = new Mapping<String, Step> {
     }
 
     // Markdown structure + style
-    ["markdown_lint"] = Builtins.markdown_lint
+    ["markdown_lint"] = (Builtins.markdown_lint) {
+        exclude = vendored
+    }
 
     // Markdown table autoformatting + general formatting
     ["prettier"] = (Builtins.prettier) {
         glob = List("**/*.md", "**/*.json", "**/*.yml", "**/*.yaml")
+        exclude = vendored
     }
 
     // Validate every link in every markdown file (incl. anchors + relative paths)
