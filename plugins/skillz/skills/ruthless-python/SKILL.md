@@ -23,8 +23,8 @@ to cases the rule doesn't literally cover.
 
 - **Rule 1 — 100% typed.** Every signature, every attribute, every return. No untyped `def`, no implicit `Any` from a missing annotation. Pyright/mypy clean.
 - **Rule 2 — `Any` and `object` are last-resort.** If you use one, add a one-line comment above the annotation explaining _why_ a precise type isn't possible (untyped third-party lib, true dynamic dispatch, serialization boundary). No `Any` without that justification.
-- **Rule 3 — Never return `list[Any]` or `dict[str, Any]`.** That's a missing type, not a type. Define a `TypedDict`, dataclass, or pydantic model and return that. See `references/typing.md`.
-- **Rule 4 — Pydantic first for data with shape or boundaries.** Anything crossing an I/O boundary (HTTP, queue, file, LLM tool call, config) is a `pydantic.BaseModel`. Internal value objects can be `@dataclass` (frozen, slots) or `TypedDict`. Plain dicts are not a data model. See `references/pydantic.md`.
+- **Rule 3 — Never return `list[Any]` or `dict[str, Any]`.** That's a missing type, not a type. Define a pydantic model (or a `TypedDict`) and return that. See `references/typing.md`.
+- **Rule 4 — Pydantic first for data with shape or boundaries.** Structured data is a `pydantic.BaseModel`, both at I/O boundaries (HTTP, queue, file, LLM tool call, config) and for internal value objects. A wrapped list, dict, or scalar is a `RootModel[T]`. Use `@dataclass` only where pydantic isn't a dependency. Plain dicts are not a data model. See `references/pydantic.md`.
 - **Rule 5 — Methods live on the model, not in utility modules.** If a function's first argument is a `User`, it's a method on `User`. Don't write `def _normalize_email(user: User) -> str` in a `helpers.py`; write `User.normalize_email(self) -> str`. Behavior belongs with the data it operates on. Reasons it matters:
   - Discoverability: `user.<TAB>` shows what a `User` can do; grepping `helpers.py` does not.
   - Refactor safety: renaming the field updates call sites via the type checker; loose utility functions silently rot.
@@ -189,6 +189,7 @@ See `references/pydantic.md` for model factory patterns.
 | Hand-rolled `async for` accumulation loop       | `import asyncstdlib as a` → `a.map` / `a.filter`  |
 | `for x in await collect_all(): ...`             | `async for x in stream: ...` (via `asyncstdlib`)  |
 | Plain dict as a data carrier across modules     | pydantic model (or `TypedDict` if internal-only)  |
+| `@dataclass` in a project that has pydantic     | `BaseModel` (`frozen=True`), or `RootModel[T]`    |
 | `**kwargs: Any` for config                      | A `BaseModel` for config; pass the model          |
 | `@property` doing real I/O                      | Make it an explicit `async def` method            |
 | `cast(T, x)` to silence pyright                 | Fix the type at the source, or `TypeGuard`        |
