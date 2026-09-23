@@ -175,6 +175,32 @@ One question per block, at most one block per message, placed last so it's the
 final thing read. Options carry globally-unique IDs (`unique-option-numbering`).
 No block when you can pick a sensible default and say what you picked.
 
+## Unacceptable: bare option IDs
+
+Never ask for a pick by ID without showing the options in the same message.
+
+```text
+Still open:
+- MI1 / MI2: in DATA.md, say "48k to 8.5M+ tokens" (measured only) or keep "over 20M" (extrapolated).
+- MG4 / MG5: put the three eval questions in README.md, or keep them as our private answer key.
+```
+
+Which ID is which choice? One sentence with an "or" in it is not a list, and
+the IDs point at tables from turns ago that the reader has forgotten. Each ID
+gets its own line saying what it does:
+
+```text
+Still open:
+  MI1  DATA.md says "48k to 8.5M+ tokens" ..... measured only
+  MI2  DATA.md keeps "over 20M" ............... extrapolated
+  MG4  eval questions go in README.md
+  MG5  eval questions stay our private answer key
+say **MI1** or **MI2**, and **MG4** or **MG5**
+```
+
+A bare back-reference is fine only when the full list was in the message just
+before. Otherwise repeat the list, with the same IDs (`unique-option-numbering`).
+
 ## Completion summary
 
 When a task wraps, close with a compact summary — what shipped, what's left,
