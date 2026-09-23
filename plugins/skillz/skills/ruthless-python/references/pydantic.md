@@ -4,6 +4,26 @@ Depth on Rules 4 & 5 of `ruthless-python`. Read when designing a model,
 choosing between `BaseModel` and `dataclass`, writing a validator, or
 shaping a `pydantic-ai` agent.
 
+## BaseModel, RootModel, then dataclass
+
+- `BaseModel` for anything with named fields, internal or at a boundary.
+  `frozen=True` covers what `@dataclass(frozen=True)` was for, and adds
+  validation, `model_copy`, and JSON round-tripping.
+- `RootModel[T]` when the value is one list, dict, or scalar that needs
+  validation or methods, e.g. `class Tags(RootModel[frozenset[Tag]])`.
+- `@dataclass(frozen=True, slots=True)` only where pydantic isn't a
+  dependency (stdlib-only scripts, a library that must not pull it in).
+  Picking dataclass for speed needs a profile that shows validation is
+  the bottleneck.
+
+## Parsing JSON input
+
+Parse and validate in one step: `Model.model_validate_json(raw)` for a
+model, `TypeAdapter(list[Model]).validate_json(raw)` for a bare
+container. `json.loads` returns untyped `Any`, so a missing or misspelled
+key only fails later as a `KeyError`, far from the input that caused it.
+A `ValidationError` at the boundary names the exact field.
+
 ## Model design checklist
 
 For every new model, decide:

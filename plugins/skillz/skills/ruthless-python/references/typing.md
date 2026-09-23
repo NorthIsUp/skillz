@@ -10,8 +10,10 @@ Goal: the type announces what the value _means_, not just its shape.
 | Use case                                           | Use                                        |
 | -------------------------------------------------- | ------------------------------------------ |
 | Data crossing I/O / process boundary               | `pydantic.BaseModel`                       |
-| Internal immutable value with behavior             | `@dataclass(frozen=True, slots=True)`      |
-| Internal record, no behavior, no validation needed | `TypedDict` (or frozen dataclass)          |
+| Internal immutable value with behavior             | `BaseModel` with `frozen=True`             |
+| Validated wrapper around one list/dict/scalar      | `RootModel[T]`                             |
+| Internal record, no behavior, no validation needed | `TypedDict` (or frozen `BaseModel`)        |
+| Any of the above where pydantic isn't a dependency | `@dataclass(frozen=True, slots=True)`      |
 | Tagged variants (sum type)                         | Union of `BaseModel`s with a `Literal`     |
 | Fixed-shape heterogeneous record from external lib | `TypedDict`                                |
 | Homogeneous sequence                               | `list[T]` / `Sequence[T]` / `tuple[T,...]` |
