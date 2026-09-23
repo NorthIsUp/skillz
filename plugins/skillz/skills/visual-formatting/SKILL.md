@@ -177,7 +177,8 @@ No block when you can pick a sensible default and say what you picked.
 
 ## Unacceptable: bare option IDs
 
-Never ask for a pick by ID without showing the options in the same message.
+Every option must be restated in the message that asks for the pick. No
+exceptions, even if the list was in the message right before.
 
 ```text
 Still open:
@@ -198,8 +199,75 @@ Still open:
 say **MI1** or **MI2**, and **MG4** or **MG5**
 ```
 
-A bare back-reference is fine only when the full list was in the message just
-before. Otherwise repeat the list, with the same IDs (`unique-option-numbering`).
+Repeat the list, keeping the same IDs (`unique-option-numbering`). Don't
+point back to it, even when it's only one message up.
+
+## Unacceptable: "say AB1 or AB2" with no options anywhere
+
+A real reply, trimmed. It ends by asking for a pick, but AB1 and AB2 are never
+stated anywhere in the message:
+
+```text
+The staging-persona plan is now recorded as a TODO in …/TODO.md, pushed to
+#3128 as 729802efa. No design work continues on it for now.
+
+📦 The entry covers:
+- Why: persona data never reaches silver or gold. …
+- Where to seed: the staging cluster and its database branch, …
+
+╔═════════════════════════════
+║  📋 where things stand
+╟─────────────────────────────
+║  🔀 #3128 OPEN · 729802efa · CI restarted · claw:ignore until green
+║     ✅ Y1 · R5/R6 · bot review fixes · medallion TODO
+
+⏳ The #3128 agent is now waiting on CI for 729802efa. When that's green, …
+
+Say AB1 or AB2 whenever you're ready.
+```
+
+What's wrong with it, worst first:
+
+- **The ask has no options.** `Say AB1 or AB2` is the only thing the reader
+  has to act on, and there's nothing to choose from. They would have to scroll
+  back through the conversation and guess what each ID meant. Whenever you ask
+  for a pick, write out every option in that same message, one line per ID,
+  inside a question block placed last.
+- **Prose, then the box, then more prose.** The box was supposed to carry the
+  status; the paragraphs above and below repeat it. Everything goes in the box,
+  or there is no box.
+- **Box never closed.** It has no `╚` bottom, and its content is wider than
+  the top rule. A box that trails off doesn't read as one object.
+- **`·`-chained lines.** Four facts in one line, with no leaders and no
+  buckets. One item per line, with its state on the right after dot leaders.
+- **Undefined tokens.** `Y1` and `R5/R6` mean nothing to someone skimming.
+  Name what they are, or leave them out.
+- **Glyph drift.** `📦` stands for an artifact, not a list header. `⏳` opens a
+  prose paragraph when it should be a bucket.
+
+The same content, done right:
+
+```text
+╔════════════════════════════════════════════════════════
+║  📋 staging-persona plan parked as a medallion TODO
+╟────────────────────────────────────────────────────────
+║ ✅ complete
+║   📦 TODO entry ........... src/clara/medallion/TODO.md
+║   🔀 #3128 OPEN ........... pushed 729802efa
+║   ✅ bot review ........... both open findings fixed
+║
+║ ⏳ in progress
+║   🧪 CI on 729802efa ...... running
+║   🆙 on green ............. swap claw:ignore → claw:babysit
+╚════════════════════════════════════════════════════════
+
+╭────────────────────────────────────────
+│  ❓ <the question AB1/AB2 answer>
+│
+│  AB1  <option, restated> ..... <tradeoff>
+│  AB2  <option, restated> ..... <tradeoff>
+╰────────────────────────────────────────
+```
 
 ## Completion summary
 

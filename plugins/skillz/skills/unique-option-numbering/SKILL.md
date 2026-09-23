@@ -22,6 +22,9 @@ conversation, even across unrelated lists, so `A2` means one thing forever.
 - The ID is the reply token — close an ask with `say **C1** or **C2**`, never
   `say **proven**`. A label the reader has to type back is one you can't
   forget to write, and it still resolves when they mention C2 next week.
+- Every option the ask names is restated in full in that same message: its ID
+  and what it does. An ID the reader has to scroll back to decode doesn't
+  count as an option.
 
 A hook supplies the next free prefix each turn (`Next option-group prefix: D`).
 Use that, don't recall — it's computed from the transcript, so it stays right
