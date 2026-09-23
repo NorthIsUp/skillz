@@ -177,7 +177,8 @@ No block when you can pick a sensible default and say what you picked.
 
 ## Unacceptable: bare option IDs
 
-Never ask for a pick by ID without showing the options in the same message.
+Every option must be restated in the message that asks for the pick. No
+exceptions, even if the list was in the message right before.
 
 ```text
 Still open:
@@ -198,8 +199,8 @@ Still open:
 say **MI1** or **MI2**, and **MG4** or **MG5**
 ```
 
-A bare back-reference is fine only when the full list was in the message just
-before. Otherwise repeat the list, with the same IDs (`unique-option-numbering`).
+Repeat the list, keeping the same IDs (`unique-option-numbering`). Don't
+point back to it, even when it's only one message up.
 
 ## Unacceptable: "say AB1 or AB2" with no options anywhere
 
