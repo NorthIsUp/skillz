@@ -7,6 +7,7 @@ lychee = "latest"
 "npm:prettier" = "latest"
 "cargo:typos-cli" = "latest"
 actionlint = "latest"
+shellcheck = "latest"  # actionlint shells out to it for run: blocks
 
 [env]
 # Keep output paths predictable for hk + watchers
