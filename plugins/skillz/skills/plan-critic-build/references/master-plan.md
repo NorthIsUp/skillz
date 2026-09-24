@@ -30,6 +30,9 @@ runner", "never `--no-verify`". Two kinds of line are easy to forget:
 
 - **User decisions** made during planning, labelled with who and when
   (`**Art source precedence (user decision):** …`).
+- **Asset rules**: gitignored or copyrighted inputs stay in `vendor/`
+  (ignored as `/vendor` so the worktree symlink matches), and no copyrighted
+  text is copied verbatim.
 - **Rules added mid-run.** This section is how the orchestrator steers a
   running workflow. The build prompt tells every agent the current text wins.
   Batch verification was added this way:
@@ -42,6 +45,20 @@ runner", "never `--no-verify`". Two kinds of line are easy to forget:
   - Cover collections with parameterized tests, not one test per button.
   - For UI, write one UI test that visits every screen and state the task
     touches, saves all the screenshots in a single run, then view them all.
+```
+
+## Pinned decisions
+
+The option table the user approved at each gate, one row per decision with its
+option ID. The orchestrator copies the rows each section needs into that
+planner's brief (`decisions` in `args`), so the planner implements them
+instead of re-deciding:
+
+```markdown
+| ID  | Decision                                        |
+| --- | ----------------------------------------------- |
+| C1  | iPad first; the iPhone layout comes after v1    |
+| D1  | Indexed 8-bit canvas, palette lookup at display |
 ```
 
 ## Shared Contracts

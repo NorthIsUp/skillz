@@ -12,6 +12,17 @@ Don't message a workflow agent (SKILL.md lesson 1). Instead:
 3. Agents already running keep their old instructions. If that matters, stop
    the run and relaunch (below).
 
+## User feedback during the build
+
+- **It changes planned behaviour:** edit the plan task before that task runs.
+  Grep every reference to what changed (other tasks, contracts, goldens) and
+  update the tests with it, so the reviewer doesn't reject a correct
+  implementation. Commit under the merge lock.
+- **It's a bug in merged work:** hotfix it yourself or with one agent, in its
+  own worktree from the integration branch. Verify it with a test that failed
+  first and a screenshot you viewed, then merge through the same merge lock.
+  The running build never sees a half-applied fix.
+
 ## Stop, inject, relaunch
 
 Use this when a run is wedged (an agent was messaged, a wave failed, the
@@ -34,11 +45,31 @@ calls. Any changed input (prompt, options, agent type) is a miss, and so is
 everything after a call that failed. Injection is the reliable path; resume is
 a bonus when it hits.
 
+## Defer a chunk
+
+Stopping early is cheap. Stop the run, drop the chunk from `sections` or
+`chunks`, relaunch with everything finished in `done`, and record the chunk
+as deferred in the project's TODO with the user's reason.
+
+## After a session restart
+
+In-flight workflow agents are lost; their scratch prototypes survive a
+restart but not a reboot.
+
+1. Inject every finished result from the old run's `journal.jsonl` as `done`.
+2. Give each interrupted planner a `hint`: the path of its predecessor's
+   prototype, to inspect and reuse.
+3. Clear locks the dead run held: check nothing uses the resource, then
+   `rmdir`.
+4. Named teammate agents are gone too, and messages to them fail. Re-spawn
+   them with full context; they remember nothing.
+
 ## Run the leftovers
 
 The build's result lists `not_run`: graph tasks that are neither in `done` nor
 merged. It covers tasks the critic added outside the waves, tasks after a
-failed wave, and tasks with no plan file. After fixing whatever stopped the
+failed wave, tasks with no plan file, and tasks the fold agent added. The
+final verification's `gaps` are leftovers too: plan a task for each. After fixing whatever stopped the
 run:
 
 1. Re-derive waves for the leftovers from the graph's dependencies (all their
@@ -49,9 +80,11 @@ run:
 ## Status when the user asks
 
 Workflows notify only on completion. For a mid-run answer, read the run's
-`journal.jsonl` (and `/workflows` for the live tree), then report as
-buckets: merged, in progress, queued, failed. Say up front, at launch, that
-no milestones will be pushed.
+`journal.jsonl` (and `/workflows` for the live tree), then report as a
+dashboard (the `visual-formatting` rule) with buckets merged, in progress,
+queued, failed, and an estimate in hours from the waves left and the average
+wave time so far. Say up front, at launch, that no milestones will be pushed.
+If you promised a ping and didn't send it, say so.
 
 ## Stale locks
 

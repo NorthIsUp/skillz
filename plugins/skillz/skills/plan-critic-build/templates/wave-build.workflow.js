@@ -3,6 +3,8 @@ export const meta = {
   description: 'Execute a plan wave by wave: each task implemented in its own worktree, then a reviewer re-runs its tests, fixes, and merges under a lock',
   whenToUse: 'After plan-critic produced an execution graph with waves of disjoint-file tasks',
   phases: [
+    { title: 'Fold', detail: 'concurrent agent rewrites the plan tasks new observations affect; awaited before the first wave that needs it' },
+    { title: 'Side jobs', detail: 'independent data jobs writing to scratch, alongside the build' },
     { title: 'Build', detail: 'per wave: implementer in a worktree, reviewer re-tests and merges; stop at the first failed wave' },
     { title: 'Final', detail: 'whole-project verification on the integration branch' },
   ],
@@ -25,9 +27,14 @@ export const meta = {
 //   mergeLock:   '/tmp/<proj>-merge.lock',
 //   locks:       [{ name: 'simulator', path: '/tmp/<proj>-sim.lock', when: '<which commands need it>',
 //                   staleMinutes: 40, busy: '<pgrep pattern that means the holder is still working>' }],
-//   final:       '<final verification checklist>',      // optional; Final phase skipped when absent
+//   assets:      'vendor/',                             // optional; gitignored or copyrighted, symlinked into each worktree via `setup`
+//   maxParallel: 4,                                     // optional; cap tasks per wave batch (RAM, simulators)
+//   fold:        { prompt: '<what to fold into which plan files>', beforeWave: 7 },  // optional; 1-based wave that needs it
+//   sideJobs:    [{ label, prompt }],                   // optional; independent jobs, scratch output only
+//   final:       '<project steps: setup, every test suite, screenshots to take, spec feature inventory path>',  // required
 // }
 const A = args
+if (!A.final) throw new Error('args.final is required: the run is not done until a final verification reports on the whole project')
 const FILE = Object.fromEntries(A.tasks.map(t => [t.id, t.file]))
 const DONE = new Set(A.done || [])
 const prefix = A.prefix || 'task/'
@@ -52,7 +59,8 @@ Hard rules:
 - A checkbox step is done only when you hold its artifact: the test output you saw, the screenshot you looked at. Never claim a pass you did not see.
 - Batch verification: make every related edit first, then one build + lint pass and fix everything it reports. Parameterized tests over collections, not one test per item. One UI test run that visits every screen the task touches and saves every screenshot.
 ${lockRules}
-- The plan's code was checked against a scratch assembly; the real integration branch may differ. Keep the plan's names and contracts, adapt mechanics, and report every deviation.
+- Never kill a process you did not start in this task (no broad pkill/killall). Other runs share this machine.
+${A.assets ? `- Never commit anything under ${A.assets} (gitignored; may be copyrighted) and never copy copyrighted text verbatim; paraphrase.\n` : ''}- The plan's code was checked against a scratch assembly; the real integration branch may differ. Keep the plan's names and contracts, adapt mechanics, and report every deviation.
 `
 
 const IMPL_SCHEMA = {
@@ -79,6 +87,26 @@ const REVIEW_SCHEMA = {
     blocker: { type: 'string' },
   },
   required: ['merged', 'issues_fixed', 'open_concerns'],
+}
+
+const FOLD_SCHEMA = {
+  type: 'object',
+  properties: {
+    changed: { type: 'array', items: { type: 'string' }, description: 'task id: what changed' },
+    new_tasks: { type: 'array', items: { type: 'string' }, description: 'task ids added; this run will not execute them' },
+  },
+  required: ['changed', 'new_tasks'],
+}
+const FINAL_SCHEMA = {
+  type: 'object',
+  properties: {
+    suites: { type: 'array', items: { type: 'object', properties: { command: { type: 'string' }, passed: { type: 'number' }, failed: { type: 'number' } }, required: ['command', 'passed', 'failed'] } },
+    features: { type: 'array', items: { type: 'object', properties: { feature: { type: 'string' }, status: { type: 'string', enum: ['works', 'partial', 'missing'] }, where: { type: 'string', description: 'file:line' } }, required: ['feature', 'status', 'where'] } },
+    screenshots_viewed: { type: 'array', items: { type: 'string' } },
+    fixes: { type: 'array', items: { type: 'string' } },
+    gaps: { type: 'array', items: { type: 'string' }, description: 'larger breakages or missing features left for the orchestrator, with file:line' },
+  },
+  required: ['suites', 'features', 'screenshots_viewed', 'fixes', 'gaps'],
 }
 
 function implPrompt(id, attempt, prior) {
@@ -124,16 +152,39 @@ const scheduled = new Set(A.waves.flat())
 const unscheduled = A.tasks.map(t => t.id).filter(id => !scheduled.has(id) && !DONE.has(id))
 if (unscheduled.length) log(`In the graph but in no wave, so this run will not execute them: ${unscheduled.join(', ')}`)
 
+// Fold and side jobs start now and run alongside the early waves.
+const foldPromise = A.fold ? agent(`${RULES}
+TASK: Fold new observations or research into the plan text before the affected tasks run. Do not implement anything.
+${A.fold.prompt}
+Keep each task's TDD structure with real code; update every test and golden the change affects; grep for every other reference to what you change. Add, never rename, contract members. Record any task you add in the master plan's Execution Graph.
+Commit the doc edits to ${A.branch} holding the merge lock: ${locked(A.mergeLock, `cd ${q(A.repo)} && git add docs && git commit -m "docs(plan): fold observations" -m "${A.trailer}"`, 30, `git merge --no-ff ${prefix}`)}`,
+  { label: 'fold', phase: 'Fold', schema: FOLD_SCHEMA }) : null
+const sidePromises = (A.sideJobs || []).map(j => agent(`${RULES}
+TASK (side job, independent of the build): ${j.prompt}
+Write only to scratch outside the repo and return the output paths. Never commit; the orchestrator reviews a sample and commits.`,
+  { label: `side:${j.label}`, phase: 'Side jobs' }))
+let fold = null
+
 phase('Build')
 const results = []
 let failed = null
 for (let w = 0; w < A.waves.length; w++) {
+  if (foldPromise && w + 1 === A.fold.beforeWave) {
+    fold = await foldPromise
+    log(fold ? `Folded: ${fold.changed.join('; ')}${fold.new_tasks.length ? ` | new tasks, not in this run: ${fold.new_tasks.join(', ')}` : ''}` : 'Fold agent failed; later waves run the unfolded plan')
+  }
   const wave = A.waves[w].filter(id => !DONE.has(id) && FILE[id])
   const noFile = A.waves[w].filter(id => !DONE.has(id) && !FILE[id])
   if (noFile.length) log(`Wave ${w + 1}: no plan file for ${noFile.join(', ')}; skipped`)
   if (!wave.length) continue
   log(`Wave ${w + 1}/${A.waves.length}: ${wave.join(', ')}`)
-  const out = (await parallel(wave.map(id => () => runTask(id)))).map((r, i) => r || { id: wave[i], ok: false, stage: 'crash' })
+  // ponytail: fixed batches; a slot pool would keep the cap full while a slow task runs
+  const cap = A.maxParallel || wave.length
+  const out = []
+  for (let b = 0; b < wave.length; b += cap) {
+    const batch = wave.slice(b, b + cap)
+    out.push(...(await parallel(batch.map(id => () => runTask(id)))).map((r, i) => r || { id: batch[i], ok: false, stage: 'crash' }))
+  }
   results.push(...out)
   const bad = out.filter(r => !r.ok)
   if (bad.length) {
@@ -143,15 +194,20 @@ for (let w = 0; w < A.waves.length; w++) {
   }
 }
 
+if (foldPromise && !fold) fold = await foldPromise
+const side = await Promise.all(sidePromises)
+
 let final = null
-if (!failed && A.final) {
+if (!failed) {
   phase('Final')
   final = await agent(`${RULES}
 TASK: Final whole-project verification on ${A.branch} in ${q(A.repo)}. Every scheduled task is merged. Do not add features.
 ${A.final}
-Fix only small breakages (commit with the trailer, hooks passing); list larger ones with file:line.
-Return: pass counts, a per-requirement status table (works / partial / missing), screenshot paths, fixes made, open issues.`,
-    { label: 'final-verify', phase: 'Final' })
+1. Run every test suite and record pass and fail counts per command.
+2. Check the spec's feature inventory item by item against the running project and the code: works, partial or missing, each with file:line.
+3. Take the screenshots the steps name and look at each one; list only the ones you viewed.
+4. Fix only small breakages (commit with the trailer, hooks passing). List bigger ones as gaps with file:line.`,
+    { label: 'final-verify', phase: 'Final', schema: FINAL_SCHEMA })
 }
 
 const merged = results.filter(r => r.ok).map(r => r.id)
@@ -159,7 +215,8 @@ const ran = new Set([...DONE, ...merged])
 return {
   merged,
   failed,
-  not_run: A.tasks.map(t => t.id).filter(id => !ran.has(id)),
+  not_run: [...A.tasks.map(t => t.id).filter(id => !ran.has(id)), ...(fold ? fold.new_tasks : [])],
   concerns: results.filter(r => r.ok && r.concerns.length).map(r => ({ id: r.id, concerns: r.concerns, deviations: r.deviations })),
+  side,
   final,
 }

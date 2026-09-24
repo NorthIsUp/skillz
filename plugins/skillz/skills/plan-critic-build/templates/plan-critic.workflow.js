@@ -19,8 +19,10 @@ export const meta = {
 //   writingPlans:'<abs path to writing-plans SKILL.md>',
 //   trailer:     'Co-Authored-By: <model> <noreply@anthropic.com>',
 //   context:     '<project brief: goal, toolchain, binding rules the planners need>',
-//   research:    [{ key, title, ask }],                   // optional
-//   sections:    [{ id, scope, needs: [researchKey], dependsOn: [sectionId] }],
+//   scratch:     '<abs dir for planner prototypes>',       // outside the repo; survives a session restart, not a reboot
+//   research:    [{ key, title, ask, observe: '<how to run the original, e.g. an emulator URL>', minutes: 90 }],  // optional; observe/minutes optional
+//   sections:    [{ id, scope, decisions: ['<binding decision the user approved>'], needs: [researchKey], dependsOn: [sectionId],
+//                   hint: '<path of an interrupted predecessor prototype>' }],   // decisions and hint optional
 //   done:        { research: { key: result }, sections: { id: result } },  // results finished in an earlier run
 // }
 const A = args
@@ -114,6 +116,7 @@ for (const r of research) {
 TASK (research; read-only except your one doc): ${r.title}
 ${r.ask}
 Work empirically: back every claim with code or commands you actually ran. Put reusable, verified code in the doc.
+${r.observe ? `Observe the reference implementation, don't infer: run it (${r.observe}), drive it with Playwright, screenshot every state you measure and measure from pixels. Record the recipe that got it running so the next observer skips the setup. Mark each finding high / medium / low confidence. Time box: ${r.minutes || 90} minutes, then write up what you have plus what stays unobserved.` : ''}
 Write findings to ${q(`${A.researchDir}/${r.key}.md`)}. Do not commit; the orchestrator commits.`,
       { label: `research:${r.key}`, phase: 'Research', schema: RESEARCH_SCHEMA })
 }
@@ -125,11 +128,14 @@ function sectionPrompt(s, researchDeps, sectionDeps) {
   const sb = sectionDeps.filter(([, d]) => d).map(([id, d]) => `- ${id}: ${d.path}`).join('\n')
   return `${COMMON}
 TASK: Write the implementation plan section "${s.id}" to ${q(`${A.sectionsDir}/${s.id}.md`)}.
-Scope (binding decisions): ${s.scope}
+Scope: ${s.scope}
+${s.decisions && s.decisions.length ? `Pinned decisions (the user approved these; implement them, do not re-decide or reopen them):\n${s.decisions.map(d => `- ${d}`).join('\n')}` : ''}
+${s.hint ? `A previous planner for this section was interrupted; its scratch prototype is at ${q(s.hint)}. Inspect it first and reuse what is sound; it may predate current code.` : ''}
 ${rb ? `Research to read and build on:\n${rb}` : ''}
 ${sb ? `Sections this one builds on (read them; use their exact names):\n${sb}` : ''}
 Follow the writing-plans format exactly (read ${q(A.writingPlans)}): each task has Files, Interfaces (Consumes / Produces with exact signatures) and checkbox steps: failing test with real code -> run it (exact command, expected failure) -> complete implementation code -> run (expected pass) -> lint/hooks pass -> commit (exact command, conventional message ending with '${A.trailer}'). No placeholders, no "similar to Task N". Task ids ${s.id}-T1, ${s.id}-T2, ...; depends_on lists ids from any section.
-Name every file each task touches. Verify APIs you are unsure of with a scratch probe outside the repo. Write only the plan; do not implement or commit.`
+Name every file each task touches.
+Prototype before you write: copy the repo to ${q(`${A.scratch}/${s.id}`)}, apply your tasks' code there, and run the build, lint and tests. Probe every SDK or library API you are unsure of (grep the SDK's interface files, or a typecheck-only compile of a one-file probe). The plan carries only code you ran. Never modify the repo except your plan file; do not commit.`
 }
 
 phase('Write')
@@ -166,7 +172,7 @@ Check and FIX IN PLACE (edit section files; edit the master plan only to record 
 4. Placeholder scan: TBD, TODO, "similar to", "add error handling", sketches instead of code. Fix them.
 5. Review Focus: each item has a concrete test in an owning task.
 6. Tooling: every run command the tasks use exists (task runner entries, scripts); add missing ones to the task that owns tooling.
-7. Compile check: assemble the plans' code in a scratch copy of the repo outside it (apply each task's edits in graph order), build and test it, and fix the plans where it breaks. Report what you ran and its result.
+7. Compile check: each planner proved its own section in ${q(A.scratch)}; you prove them together. Assemble every section's code in one scratch copy of the repo (apply each task's edits in graph order), build, lint and test it, and fix the plans where it breaks. Report what you ran and its result.
 8. Execution graph: every task id -> depends-on ids, then waves where tasks in one wave touch disjoint files. List files many tasks edit ("hot files") and serialize those tasks unless the edits are append-only and trivially mergeable; say which. Write it as "## Execution Graph" at the end of the master plan.
 Do not commit. Return the graph: each task with the plan file holding its "### Task <id>" block.`,
   { label: 'critic', phase: 'Critique', schema: GRAPH_SCHEMA })
