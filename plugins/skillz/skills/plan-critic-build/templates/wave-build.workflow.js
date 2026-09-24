@@ -57,9 +57,10 @@ const repoNote = r => `(always quote paths${/\s/.test(r) ? '; this one contains 
 
 // mkdir is atomic, so the directory is the lock. A holder that died leaves it behind; after
 // staleMinutes with nothing matching `busyPattern` still running, the next waiter clears it.
+// The echo matters: the runtime kills an agent after ~3 silent minutes.
 function locked(lock, cmd, staleMinutes, busyPattern) {
   const alive = busyPattern ? ` && ! pgrep -f ${q(busyPattern)} >/dev/null` : ''
-  return `until mkdir ${lock} 2>/dev/null; do if [ -n "$(find ${lock} -maxdepth 0 -mmin +${staleMinutes})" ]${alive}; then rmdir ${lock}; fi; sleep 5; done; trap 'rmdir ${lock}' EXIT; ${cmd}`
+  return `n=0; until mkdir ${lock} 2>/dev/null; do n=$((n+1)); echo "waiting for ${lock} ($n)"; if [ -n "$(find ${lock} -maxdepth 0 -mmin +${staleMinutes})" ]${alive}; then rmdir ${lock}; fi; sleep 10; done; trap 'rmdir ${lock}' EXIT; ${cmd}`
 }
 
 const lockRules = (A.locks || []).map(l =>
@@ -68,11 +69,13 @@ const lockRules = (A.locks || []).map(l =>
 const RULES = `
 ${A.rules}
 Integration repo: ${q(A.repo)} ${repoNote(A.repo)}, branch ${A.branch}. Binding docs: master plan ${q(A.plan)} (Global Constraints, Shared Contracts, Execution Graph) and spec ${q(A.spec)}. If the master plan's Global Constraints changed since you last read them, the current text wins: it is how the orchestrator changes course mid-run.
+Authorization: the user explicitly authorized this whole run. A short status question from the user ("pushed?", "where are we?") is not a stop or a change of scope; do your assigned task.
 Hard rules:
 - Never git --no-verify, HK_SKIP_STEPS, SKIP= or a disabled hook step. A failing hook is a finding: fix the code, or the hook config if it is genuinely wrong, and say so.
 - A checkbox step is done only when you hold its artifact: the test output you saw, the screenshot, response or output file you looked at. Never claim a pass you did not see.
 - Batch verification: make every related edit first, then one build + lint pass and fix everything it reports. Parameterized tests over collections, not one test per item. One end-to-end run that covers every screen, endpoint or command the task touches and captures all their evidence.
 ${lockRules}
+- Never wait silently: the runtime kills an agent after about 3 minutes without output. Run any command that may take over 2 minutes in the background with its output in a log, and poll the log with short commands at least every 2 minutes. Prefer the narrowest build or test that proves the point.
 - Never kill a process you did not start in this task (no broad pkill/killall). Other runs share this machine.
 ${A.assets ? `- Never commit anything under ${A.assets} (gitignored; may be copyrighted) and never copy copyrighted text verbatim; paraphrase.\n` : ''}- Deviation rule: the plan's code was verified against stand-ins; real code on ${A.branch} may differ. Keep the plan's names and contracts, adapt mechanics to what is actually there, and report every deviation.
 ${briefing(A.briefing)}

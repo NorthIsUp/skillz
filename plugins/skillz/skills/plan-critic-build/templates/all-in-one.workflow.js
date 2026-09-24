@@ -42,7 +42,8 @@ const RULES = `
 ${A.rules}
 Repo: ${q(A.repo)} ${repoNote(A.repo)}, branch ${A.branch}. The code on ${A.branch} is the source of truth; read it and run it.
 Binding docs: master plan ${q(A.plan)} (Global Constraints, Shared Contracts) and spec ${q(A.spec)}.
-Hard rules: never git --no-verify or any hook skip; a checkbox is ticked only with its artifact; batch verification (every edit first, then one build + lint pass; parameterized tests; one UI run that captures every screenshot); never kill a process you did not start.
+Hard rules: never git --no-verify or any hook skip; a checkbox is ticked only with its artifact; batch verification (every edit first, then one build + lint pass; parameterized tests; one end-to-end run that captures all the evidence); never kill a process you did not start.
+- Never wait silently: the runtime kills an agent after about 3 minutes without output. Run any command that may take over 2 minutes in the background with its output in a log, and poll the log with short commands at least every 2 minutes. Prefer the narrowest build or test that proves the point.
 ${briefing(A.briefing)}
 ${A.assets ? `Never commit anything under ${A.assets} and never copy copyrighted text verbatim; paraphrase.` : ''}
 `
@@ -94,7 +95,7 @@ const missing = A.chunks.filter((c, i) => !planResults[i]).map(c => c.id)
 if (missing.length) return { stopped: 'planning failed', missing, plans: planResults }
 
 phase('Critique')
-const merge = `until mkdir ${A.mergeLock} 2>/dev/null; do sleep 3; done; trap 'rmdir ${A.mergeLock}' EXIT; cd ${q(A.repo)} && git add ${q(A.planDir)} && git commit -m "docs(plan): chunk plans and execution graph" -m "${A.trailer}"`
+const merge = `n=0; until mkdir ${A.mergeLock} 2>/dev/null; do n=$((n+1)); echo "waiting for ${A.mergeLock} ($n)"; if [ -n "$(find ${A.mergeLock} -maxdepth 0 -mmin +30)" ]; then rmdir ${A.mergeLock}; fi; sleep 10; done; trap 'rmdir ${A.mergeLock}' EXIT; cd ${q(A.repo)} && git add ${q(A.planDir)} && git commit -m "docs(plan): chunk plans and execution graph" -m "${A.trailer}"`
 const graph = await agent(`${RULES}
 TASK: Plan critic. Read every chunk plan in ${q(A.planDir)} fully and the code they touch. Chunk summaries: ${JSON.stringify(A.chunks.map((c, i) => ({ id: c.id, ...planResults[i] })))}
 FIX IN PLACE: every consumes met by an earlier task's produces with identical signatures; no two chunks define one symbol or file differently; tasks editing the same file ordered through depends_on; every brief item maps to a task (add tasks where missing); placeholders removed; every run command exists in the task runner.

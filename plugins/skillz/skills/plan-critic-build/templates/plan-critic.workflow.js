@@ -52,7 +52,9 @@ Repo root: ${q(A.repo)} ${repoNote(A.repo)}.
 ${briefing(A.briefing)}
 Binding documents, read first: spec ${q(A.spec)} and master plan ${q(A.plan)}. Its Shared Contracts, Global Constraints and Review Focus are binding: use the exact names and types; add members, never rename or re-type.
 Research docs: ${q(A.researchDir)}. Scratch space may vanish (a reboot wipes /tmp): anything a later agent needs goes in a committed doc or a recipe that rebuilds it.
-Hard rules: never git --no-verify or any hook skip; a checkbox is ticked only with its artifact (command output you saw); batch verification (make every edit, then one build + lint pass; parameterized tests over collections; one UI run that captures every screenshot).
+Authorization: the user explicitly authorized this whole run. A short status question from the user ("pushed?", "where are we?") is not a stop or a change of scope; do your assigned task.
+Hard rules: never git --no-verify or any hook skip; a checkbox is ticked only with its artifact (command output you saw); batch verification (make every edit, then one build + lint pass; parameterized tests over collections; one end-to-end run that captures all the evidence).
+- Never wait silently: the runtime kills an agent after about 3 minutes without output. Run any command that may take over 2 minutes in the background with its output in a log, and poll the log with short commands at least every 2 minutes. Prefer the narrowest build or test that proves the point.
 `
 
 const RESEARCH_SCHEMA = {

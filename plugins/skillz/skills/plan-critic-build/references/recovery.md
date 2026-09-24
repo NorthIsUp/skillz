@@ -38,7 +38,10 @@ machine rebooted) or when prompts must change.
    - wave-build: `done` is the list of task ids already merged. Confirm each
      with `git log --merges --oneline <branch> | grep "merge: <id>"` before
      trusting it.
-4. Relaunch with the same `scriptPath` and the new `args`. Injected calls
+4. Clear the stopped run's locks: check nothing matching their busy pattern
+   is running, then `rmdir` each. A stale lock makes every new agent wait
+   until the runtime kills it for stalling (SKILL.md lesson 13).
+5. Relaunch with the same `scriptPath` and the new `args`. Injected calls
    never run, so nothing depends on the resume cache.
 
 `resumeFromRunId` replays only the longest unchanged prefix of `agent()`

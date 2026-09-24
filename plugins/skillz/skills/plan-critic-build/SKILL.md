@@ -139,8 +139,8 @@ task:
    TDD, hooks passing, no merge.
 2. On failure it retries once from a clean worktree, carrying the blocker.
 3. A fresh reviewer reads the diff, re-runs the tests and lint itself, fixes
-   what's real, and merges under `until mkdir <lock>` with stale-lock
-   clearing.
+   what's real, and merges under an `until mkdir <lock>` loop that prints
+   every iteration and clears a stale lock itself (lesson 13).
 
 Both prompts carry the **deviation rule**: "The plan's code was verified
 against stand-ins; real code on the integration branch may differ. Keep the
@@ -208,6 +208,7 @@ and `superpowers-finishing-a-development-branch`.
       `/tmp/<proj>-<resource>.lock`) with a `busyPattern` for stale checks.
 - [ ] `maxParallel` set for heavy builds; every shared resource behind a
       lock.
+- [ ] Stopped runs' locks cleared before any relaunch.
 - [ ] Build launched with `final`; mid-run changes went into Global
       Constraints or the pending task, never into a message.
 - [ ] After the run: `not_run` and `gaps` empty or re-launched; final review
@@ -260,6 +261,30 @@ Numbers in brackets come from the worked example below.
     (`visual-formatting`) with estimates in hours, not "a while". When a
     promised milestone ping didn't happen, say so: workflows don't push
     progress (lesson 7).
+
+13. **Silent waits get killed.** The Workflow runtime kills an agent after
+    about 3 minutes with no progress and retries it; 6 stalls fail the whole
+    run. A silent `until mkdir` loop on a stopped run's stale lock, and
+    builds over 10 minutes under load that the shell moved to the
+    background while the agent waited, killed a run this way. Lock loops
+    print every iteration and clear stale locks themselves. Long commands
+    run in the background, and the agent polls the log at least every 2
+    minutes. Use the narrowest build or test that proves the point. After
+    stopping a run, clear its locks before relaunching.
+
+14. **Agents read the user's latest message as their mandate.** A quick
+    "pushed?" mid-run made implementers refuse their tasks as out of scope.
+    Put an explicit authorization line in every agent's rules (status
+    questions are not a stop), and relaunch right after a message where the
+    user says to keep going.
+
+15. **A long pre-push hook can outlive the push connection.** git connects
+    to the remote before the hook runs; a hook that queued for 2 hours behind
+    the build agents for a shared resource finished green, then the push died
+    with a broken pipe (exit 141). Push with SSH keepalives
+    (`ServerAliveInterval`) while shared resources are idle. On a brand-new
+    empty remote, point `refs/remotes/origin/HEAD` at the root commit so a
+    hook that diffs against it can run; a fetch with prune removes it again.
 
 Recovery recipes (stopping, injecting, rescoping, restarts, hotfixes,
 leftovers, polling): [references/recovery.md](references/recovery.md).
