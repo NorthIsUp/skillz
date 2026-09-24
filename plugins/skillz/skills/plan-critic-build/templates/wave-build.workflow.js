@@ -25,7 +25,7 @@ export const meta = {
 //   waves:       [[id, ...], ...],                      // fixed when this run starts
 //   done:        [id, ...],                             // already merged; skipped (inject after a stop)
 //   mergeLock:   '/tmp/<proj>-merge.lock',
-//   locks:       [{ name: '<resource, e.g. test-db, device, gpu>', path: '/tmp/<proj>-<resource>.lock', when: '<which commands need it>',
+//   locks:       [{ name: 'shared-resource', path: '/tmp/<proj>-<resource>.lock', when: '<which commands need it>',
 //                   staleMinutes: 40, busyPattern: '<pgrep -f pattern that means the holder is still working>' }],  // optional
 //   briefing:    { toolkit: ['<path>  <fn(args) -> result>'], toolkitRecipe: '<how to rebuild the toolkit>',
 //                  facts: ['<already verified>'], limits: ['<environment limit>'], toolchain: '<versions and style bar>' },  // optional
@@ -74,7 +74,7 @@ Hard rules:
 - Batch verification: make every related edit first, then one build + lint pass and fix everything it reports. Parameterized tests over collections, not one test per item. One end-to-end run that covers every screen, endpoint or command the task touches and captures all their evidence.
 ${lockRules}
 - Never kill a process you did not start in this task (no broad pkill/killall). Other runs share this machine.
-${A.assets ? `- Never commit anything under ${A.assets} (gitignored; may be copyrighted) and never copy copyrighted text verbatim; paraphrase.\n` : ''}- Deviation rule: the plan's code was verified against a scratch assembly and stand-ins, so the real code on ${A.branch} may differ. Keep the plan's names and contracts, adapt mechanics to what is actually on ${A.branch}, and report every deviation.
+${A.assets ? `- Never commit anything under ${A.assets} (gitignored; may be copyrighted) and never copy copyrighted text verbatim; paraphrase.\n` : ''}- Deviation rule: the plan's code was verified against stand-ins; real code on ${A.branch} may differ. Keep the plan's names and contracts, adapt mechanics to what is actually there, and report every deviation.
 ${briefing(A.briefing)}
 `
 

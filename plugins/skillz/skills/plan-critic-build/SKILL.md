@@ -112,10 +112,10 @@ key.
   and return produces/consumes with exact signatures.
 - **Planners prototype.** Each one applies its code to a scratch copy of main
   and runs the project's build, lint and tests, probing any API it is unsure
-  of against the SDK or library itself: a typecheck-only compile of a
-  one-file probe (`swiftc -typecheck`, `tsc --noEmit`, `cargo check`), a grep
-  of the installed interface or type stubs, a query against a scratch
-  database. The plan carries code that ran.
+  of against the platform itself: a one-file typecheck, a grep of the
+  platform's interface files or type stubs, a REPL call, a query against a
+  scratch database. The plan carries code that ran, so implementers adapt
+  instead of debugging.
 - **The critic fixes, not just reports.** It edits section files in place:
   consumes ↔ produces, contract collisions, spec coverage, placeholders,
   Review Focus tests, tooling. It edits the master plan only to record
@@ -142,11 +142,11 @@ task:
    what's real, and merges under `until mkdir <lock>` with stale-lock
    clearing.
 
-Both prompts carry the **deviation rule**: the plan's code was verified
-against a scratch assembly, so the integration branch may differ; keep the
-plan's names and contracts, adapt mechanics to what's really there, and
-report every deviation. Without it, implementers either force stale code in
-or wander off the contracts.
+Both prompts carry the **deviation rule**: "The plan's code was verified
+against stand-ins; real code on the integration branch may differ. Keep the
+plan's names and contracts, adapt mechanics, report every deviation."
+Without it, implementers either force stale code in or wander off the
+contracts. With it, every one of the worked example's 82 tasks merged.
 
 A wave runs in parallel, in batches of `maxParallel`. The run stops at the
 first wave with a failed task, so nothing builds on a broken merge.
@@ -252,7 +252,7 @@ Numbers in brackets come from the worked example below.
     Relaunch with `hint` pointing each planner at its predecessor's prototype,
     clear stale locks, and re-spawn teammates with full context.
 11. **Machine hygiene.** Parallel builds plus heavy test resources exhaust a
-    shared machine [7 simulators, 27 GB of swap]. Cap `maxParallel` for heavy
+    shared machine [27 GB of swap]. Cap `maxParallel` for heavy
     tasks and put every shared resource behind a lock. Helpers never kill
     processes they can't attribute to their own run: a broad `pkill` broke
     another run's builds.
@@ -280,7 +280,8 @@ program, from original disc images.
   in-browser emulator and measured an ordered dither matrix, spray density
   profiles and border tiling rules; a fold agent wrote them into the pending
   tasks during waves 1–6.
-- **Build:** 82 tasks in waves, simulator behind a lock, discs in a
+- **Build:** 82 tasks in waves, the iOS simulator behind a lock (7 of them
+  running at once had pushed the machine to 27 GB of swap), discs in a
   symlinked `vendor/`. Every task merged; one late fold task ran as a
   leftover. A side job labelled 1,150 stamps from generated contact sheets.
 - **v2:** a roadmap of chunks ran through the all-in-one template, with the
