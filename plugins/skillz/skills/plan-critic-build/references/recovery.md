@@ -20,7 +20,8 @@ Don't message a workflow agent (SKILL.md lesson 1). Instead:
   implementation. Commit under the merge lock.
 - **It's a bug in merged work:** hotfix it yourself or with one agent, in its
   own worktree from the integration branch. Verify it with a test that failed
-  first and a screenshot you viewed, then merge through the same merge lock.
+  first and the evidence you viewed (screenshot, response, output), then merge
+  through the same merge lock.
   The running build never sees a half-applied fix.
 
 ## Stop, inject, relaunch

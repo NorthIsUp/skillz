@@ -19,19 +19,21 @@ export const meta = {
 //   plan:        '<abs master plan path>',
 //   spec:        '<abs spec path>',
 //   trailer:     'Co-Authored-By: <model> <noreply@anthropic.com>',
-//   rules:       '<project rules every agent obeys: toolchain, task runner, what never gets committed>',
+//   rules:       '<project rules every agent obeys: build/test/lint commands, hook runner, what never gets committed>',
 //   setup:       '<extra shell run in each new worktree, e.g. ln -s "$REPO/vendor" vendor>',  // optional
 //   tasks:       [{ id, file }],                        // from plan-critic's graph
 //   waves:       [[id, ...], ...],                      // fixed when this run starts
 //   done:        [id, ...],                             // already merged; skipped (inject after a stop)
 //   mergeLock:   '/tmp/<proj>-merge.lock',
-//   locks:       [{ name: 'simulator', path: '/tmp/<proj>-sim.lock', when: '<which commands need it>',
-//                   staleMinutes: 40, busy: '<pgrep pattern that means the holder is still working>' }],
+//   locks:       [{ name: '<resource, e.g. test-db, device, gpu>', path: '/tmp/<proj>-<resource>.lock', when: '<which commands need it>',
+//                   staleMinutes: 40, busyPattern: '<pgrep -f pattern that means the holder is still working>' }],  // optional
+//   briefing:    { toolkit: ['<path>  <fn(args) -> result>'], toolkitRecipe: '<how to rebuild the toolkit>',
+//                  facts: ['<already verified>'], limits: ['<environment limit>'], toolchain: '<versions and style bar>' },  // optional
 //   assets:      'vendor/',                             // optional; gitignored or copyrighted, symlinked into each worktree via `setup`
-//   maxParallel: 4,                                     // optional; cap tasks per wave batch (RAM, simulators)
+//   maxParallel: 4,                                     // optional; cap tasks per wave batch (RAM, heavy builds)
 //   fold:        { prompt: '<what to fold into which plan files>', beforeWave: 7 },  // optional; 1-based wave that needs it
 //   sideJobs:    [{ label, prompt }],                   // optional; independent jobs, scratch output only
-//   final:       '<project steps: setup, every test suite, screenshots to take, spec feature inventory path>',  // required
+//   final:       '<project steps: setup, every test suite, evidence to capture, spec feature inventory path>',  // required
 // }
 const A = args
 if (!A.final) throw new Error('args.final is required: the run is not done until a final verification reports on the whole project')
@@ -40,27 +42,40 @@ const DONE = new Set(A.done || [])
 const prefix = A.prefix || 'task/'
 const q = p => `"${p}"`
 const slug = id => id.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+// Prepended to every prompt so agents stop rediscovering the toolkit, the facts and the environment's limits.
+function briefing(b = {}) {
+  const list = (title, xs) => xs && xs.length ? `${title}\n${xs.map(x => `  - ${x}`).join('\n')}` : ''
+  return [
+    list('Scratch toolkit (ready-made; use it, do not rewrite it):', b.toolkit),
+    b.toolkitRecipe ? `If the toolkit is gone, rebuild it: ${b.toolkitRecipe}` : '',
+    list('Already verified (do not re-derive):', b.facts),
+    list('Environment limits:', b.limits),
+    b.toolchain ? `Toolchain and style bar: ${b.toolchain}` : '',
+  ].filter(Boolean).join('\n')
+}
+const repoNote = r => `(always quote paths${/\s/.test(r) ? '; this one contains a space' : ''})`
 
 // mkdir is atomic, so the directory is the lock. A holder that died leaves it behind; after
-// staleMinutes with nothing matching `busy` still running, the next waiter clears it.
-function locked(lock, cmd, staleMinutes, busy) {
-  const alive = busy ? ` && ! pgrep -f ${q(busy)} >/dev/null` : ''
+// staleMinutes with nothing matching `busyPattern` still running, the next waiter clears it.
+function locked(lock, cmd, staleMinutes, busyPattern) {
+  const alive = busyPattern ? ` && ! pgrep -f ${q(busyPattern)} >/dev/null` : ''
   return `until mkdir ${lock} 2>/dev/null; do if [ -n "$(find ${lock} -maxdepth 0 -mmin +${staleMinutes})" ]${alive}; then rmdir ${lock}; fi; sleep 5; done; trap 'rmdir ${lock}' EXIT; ${cmd}`
 }
 
 const lockRules = (A.locks || []).map(l =>
-  `- ${l.when} must hold the ${l.name} lock, in ONE bash invocation: ${locked(l.path, '<command>', l.staleMinutes || 40, l.busy)}  Release it as soon as the command ends.`).join('\n')
+  `- ${l.when} must hold the ${l.name} lock, in ONE bash invocation: ${locked(l.path, '<command>', l.staleMinutes || 40, l.busyPattern)}  Release it as soon as the command ends.`).join('\n')
 
 const RULES = `
 ${A.rules}
-Integration repo: ${q(A.repo)}, branch ${A.branch}. Binding docs: master plan ${q(A.plan)} (Global Constraints, Shared Contracts, Execution Graph) and spec ${q(A.spec)}. If the master plan's Global Constraints changed since you last read them, the current text wins: it is how the orchestrator changes course mid-run.
+Integration repo: ${q(A.repo)} ${repoNote(A.repo)}, branch ${A.branch}. Binding docs: master plan ${q(A.plan)} (Global Constraints, Shared Contracts, Execution Graph) and spec ${q(A.spec)}. If the master plan's Global Constraints changed since you last read them, the current text wins: it is how the orchestrator changes course mid-run.
 Hard rules:
 - Never git --no-verify, HK_SKIP_STEPS, SKIP= or a disabled hook step. A failing hook is a finding: fix the code, or the hook config if it is genuinely wrong, and say so.
-- A checkbox step is done only when you hold its artifact: the test output you saw, the screenshot you looked at. Never claim a pass you did not see.
-- Batch verification: make every related edit first, then one build + lint pass and fix everything it reports. Parameterized tests over collections, not one test per item. One UI test run that visits every screen the task touches and saves every screenshot.
+- A checkbox step is done only when you hold its artifact: the test output you saw, the screenshot, response or output file you looked at. Never claim a pass you did not see.
+- Batch verification: make every related edit first, then one build + lint pass and fix everything it reports. Parameterized tests over collections, not one test per item. One end-to-end run that covers every screen, endpoint or command the task touches and captures all their evidence.
 ${lockRules}
 - Never kill a process you did not start in this task (no broad pkill/killall). Other runs share this machine.
-${A.assets ? `- Never commit anything under ${A.assets} (gitignored; may be copyrighted) and never copy copyrighted text verbatim; paraphrase.\n` : ''}- The plan's code was checked against a scratch assembly; the real integration branch may differ. Keep the plan's names and contracts, adapt mechanics, and report every deviation.
+${A.assets ? `- Never commit anything under ${A.assets} (gitignored; may be copyrighted) and never copy copyrighted text verbatim; paraphrase.\n` : ''}- Deviation rule: the plan's code was verified against a scratch assembly and stand-ins, so the real code on ${A.branch} may differ. Keep the plan's names and contracts, adapt mechanics to what is actually on ${A.branch}, and report every deviation.
+${briefing(A.briefing)}
 `
 
 const IMPL_SCHEMA = {
@@ -70,7 +85,7 @@ const IMPL_SCHEMA = {
     branch: { type: 'string' },
     worktree: { type: 'string' },
     commits: { type: 'array', items: { type: 'string' } },
-    evidence: { type: 'array', items: { type: 'string' }, description: 'each test/lint/screenshot step: command and key output line' },
+    evidence: { type: 'array', items: { type: 'string' }, description: 'each test/lint/capture step: command and key output line' },
     deviations: { type: 'array', items: { type: 'string' } },
     concerns: { type: 'array', items: { type: 'string' } },
     blocker: { type: 'string' },
@@ -102,11 +117,11 @@ const FINAL_SCHEMA = {
   properties: {
     suites: { type: 'array', items: { type: 'object', properties: { command: { type: 'string' }, passed: { type: 'number' }, failed: { type: 'number' } }, required: ['command', 'passed', 'failed'] } },
     features: { type: 'array', items: { type: 'object', properties: { feature: { type: 'string' }, status: { type: 'string', enum: ['works', 'partial', 'missing'] }, where: { type: 'string', description: 'file:line' } }, required: ['feature', 'status', 'where'] } },
-    screenshots_viewed: { type: 'array', items: { type: 'string' } },
+    evidence_viewed: { type: 'array', items: { type: 'string' }, description: 'paths of screenshots, responses or output files you actually looked at' },
     fixes: { type: 'array', items: { type: 'string' } },
     gaps: { type: 'array', items: { type: 'string' }, description: 'larger breakages or missing features left for the orchestrator, with file:line' },
   },
-  required: ['suites', 'features', 'screenshots_viewed', 'fixes', 'gaps'],
+  required: ['suites', 'features', 'evidence_viewed', 'fixes', 'gaps'],
 }
 
 function implPrompt(id, attempt, prior) {
@@ -127,7 +142,7 @@ function reviewPrompt(id, impl) {
 TASK: You are a fresh reviewer for plan task ${id} ("### Task ${id}" in ${q(FILE[id])}) on branch ${br} in ${q(wt)}. Review it, then merge it.
 Implementer report: ${JSON.stringify(impl)}
 1. Read the task block and the diff (git -C ${q(wt)} diff ${A.branch}...${br}). Check: every file, interface and test the task names exists with the exact names; contracts and Global Constraints hold; tests assert real behaviour, not tautologies; no scope creep; deviations are justified.
-2. Re-run the task's test and lint commands yourself in the worktree (holding any lock the rules name). Look at every screenshot the task requires.
+2. Re-run the task's test and lint commands yourself in the worktree (holding any lock the rules name). Look at every screenshot or output the task requires.
 3. Fix real problems directly in the worktree: small focused commits with the trailer, hooks passing. Don't gold-plate.
 4. Merge, holding the merge lock: ${merge}
    On conflict: git merge --abort, rebase the branch onto ${A.branch} in the worktree, resolve, re-run the task's tests, merge again. Never force anything onto ${A.branch}.
@@ -205,7 +220,7 @@ TASK: Final whole-project verification on ${A.branch} in ${q(A.repo)}. Every sch
 ${A.final}
 1. Run every test suite and record pass and fail counts per command.
 2. Check the spec's feature inventory item by item against the running project and the code: works, partial or missing, each with file:line.
-3. Take the screenshots the steps name and look at each one; list only the ones you viewed.
+3. Capture the evidence the steps name (screenshots, responses, output files) and look at each one; list only what you viewed.
 4. Fix only small breakages (commit with the trailer, hooks passing). List bigger ones as gaps with file:line.`,
     { label: 'final-verify', phase: 'Final', schema: FINAL_SCHEMA })
 }

@@ -18,7 +18,9 @@ export const meta = {
 //   researchDir: '<abs dir for research docs>',           // committed, never /tmp
 //   writingPlans:'<abs path to writing-plans SKILL.md>',
 //   trailer:     'Co-Authored-By: <model> <noreply@anthropic.com>',
-//   context:     '<project brief: goal, toolchain, binding rules the planners need>',
+//   context:     '<project brief: goal, build/test/lint commands, binding rules the planners need>',
+//   briefing:    { toolkit: ['<path>  <fn(args) -> result>'], toolkitRecipe: '<how to rebuild the toolkit>',
+//                  facts: ['<already verified>'], limits: ['<environment limit>'], toolchain: '<versions and style bar>' },  // optional
 //   scratch:     '<abs dir for planner prototypes>',       // outside the repo; survives a session restart, not a reboot
 //   research:    [{ key, title, ask, observe: '<how to run the original, e.g. an emulator URL>', minutes: 90 }],  // optional; observe/minutes optional
 //   sections:    [{ id, scope, decisions: ['<binding decision the user approved>'], needs: [researchKey], dependsOn: [sectionId],
@@ -31,10 +33,23 @@ const doneResearch = done.research || {}
 const doneSections = done.sections || {}
 const research = A.research || []
 const q = p => `"${p}"`
+// Prepended to every prompt so agents stop rediscovering the toolkit, the facts and the environment's limits.
+function briefing(b = {}) {
+  const list = (title, xs) => xs && xs.length ? `${title}\n${xs.map(x => `  - ${x}`).join('\n')}` : ''
+  return [
+    list('Scratch toolkit (ready-made; use it, do not rewrite it):', b.toolkit),
+    b.toolkitRecipe ? `If the toolkit is gone, rebuild it: ${b.toolkitRecipe}` : '',
+    list('Already verified (do not re-derive):', b.facts),
+    list('Environment limits:', b.limits),
+    b.toolchain ? `Toolchain and style bar: ${b.toolchain}` : '',
+  ].filter(Boolean).join('\n')
+}
+const repoNote = r => `(always quote paths${/\s/.test(r) ? '; this one contains a space' : ''})`
 
 const COMMON = `
 ${A.context}
-Repo root: ${q(A.repo)} (always quote paths).
+Repo root: ${q(A.repo)} ${repoNote(A.repo)}.
+${briefing(A.briefing)}
 Binding documents, read first: spec ${q(A.spec)} and master plan ${q(A.plan)}. Its Shared Contracts, Global Constraints and Review Focus are binding: use the exact names and types; add members, never rename or re-type.
 Research docs: ${q(A.researchDir)}. Scratch space may vanish (a reboot wipes /tmp): anything a later agent needs goes in a committed doc or a recipe that rebuilds it.
 Hard rules: never git --no-verify or any hook skip; a checkbox is ticked only with its artifact (command output you saw); batch verification (make every edit, then one build + lint pass; parameterized tests over collections; one UI run that captures every screenshot).
@@ -115,8 +130,9 @@ for (const r of research) {
     : agent(`${COMMON}
 TASK (research; read-only except your one doc): ${r.title}
 ${r.ask}
-Work empirically: back every claim with code or commands you actually ran. Put reusable, verified code in the doc.
-${r.observe ? `Observe the reference implementation, don't infer: run it (${r.observe}), drive it with Playwright, screenshot every state you measure and measure from pixels. Record the recipe that got it running so the next observer skips the setup. Mark each finding high / medium / low confidence. Time box: ${r.minutes || 90} minutes, then write up what you have plus what stays unobserved.` : ''}
+Work empirically: back every claim with code or commands you actually ran against the real inputs, not samples or docs. Embed the verified code (decoders, probes, queries) in the doc so planners reuse it.
+Keep the doc copyright-clean: no copyrighted images, audio or verbatim text; describe, measure and paraphrase.
+${r.observe ? `Observe the reference implementation, don't infer: run it (${r.observe}), drive it with whatever fits (a browser driver such as Playwright for web apps and emulators, the old binary with captured output for a CLI, recorded requests for a service), capture evidence for every state you measure and measure from that evidence. Record the recipe that got it running so the next observer skips the setup. Mark each finding high / medium / low confidence. Time box: ${r.minutes || 90} minutes, then write up what you have plus what stays unobserved.` : ''}
 Write findings to ${q(`${A.researchDir}/${r.key}.md`)}. Do not commit; the orchestrator commits.`,
       { label: `research:${r.key}`, phase: 'Research', schema: RESEARCH_SCHEMA })
 }
@@ -135,7 +151,7 @@ ${rb ? `Research to read and build on:\n${rb}` : ''}
 ${sb ? `Sections this one builds on (read them; use their exact names):\n${sb}` : ''}
 Follow the writing-plans format exactly (read ${q(A.writingPlans)}): each task has Files, Interfaces (Consumes / Produces with exact signatures) and checkbox steps: failing test with real code -> run it (exact command, expected failure) -> complete implementation code -> run (expected pass) -> lint/hooks pass -> commit (exact command, conventional message ending with '${A.trailer}'). No placeholders, no "similar to Task N". Task ids ${s.id}-T1, ${s.id}-T2, ...; depends_on lists ids from any section.
 Name every file each task touches.
-Prototype before you write: copy the repo to ${q(`${A.scratch}/${s.id}`)}, apply your tasks' code there, and run the build, lint and tests. Probe every SDK or library API you are unsure of (grep the SDK's interface files, or a typecheck-only compile of a one-file probe). The plan carries only code you ran. Never modify the repo except your plan file; do not commit.`
+Prototype before you write: copy the repo to ${q(`${A.scratch}/${s.id}`)}, apply your tasks' code there, and run the build, lint and tests. Probe every SDK, library or service API you are unsure of against the thing itself: a typecheck-only compile of a one-file probe, a grep of its installed interface or type stubs, a query against a scratch instance. The plan carries only code you ran. Never modify the repo except your plan file; do not commit.`
 }
 
 phase('Write')
@@ -165,7 +181,7 @@ const graph = await agent(`${COMMON}
 TASK: You are the plan critic. The sections were written in parallel by different agents; make them one coherent, executable plan.
 Read the master plan, the spec, every file in ${q(A.sectionsDir)} fully (in chunks if large) and the research docs.
 Section summaries: ${JSON.stringify(summaries)}
-Check and FIX IN PLACE (edit section files; edit the master plan only to record contract additions and the section table; edit the spec only where research proved it wrong, and list each such change):
+You have authority to fix, not just report. FIX IN PLACE: edit section files; edit the master plan only to record contract additions (never renames) and the section table; edit the spec only where research proved it wrong, and list each such change in spec_changes for the user.
 1. Consumes <-> produces: every consumed name is produced, with the identical signature, by a task ordered earlier. Pick one name and edit every section that disagrees.
 2. Contracts: nothing renames or re-types a Shared Contract item; additions from different sections don't collide; edits to shared switch/dispatch code are ordered so the code compiles after every task.
 3. Spec coverage: every spec requirement maps to a task; add missing tasks to the owning section.

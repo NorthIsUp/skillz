@@ -11,7 +11,7 @@ export const meta = {
 
 // All project specifics arrive through `args`; nothing below names a project.
 // {
-//   repo, worktrees, branch, prefix, trailer, rules, setup, mergeLock, locks, assets, maxParallel, fold, sideJobs, final,  // passed to wave-build as is
+//   repo, worktrees, branch, prefix, trailer, rules, setup, mergeLock, locks, assets, briefing, maxParallel, fold, sideJobs, final,  // passed to wave-build as is
 //   plan:         '<abs path of the binding master plan>', spec: '<abs spec path>',
 //   planDir:      '<abs dir for chunk plans; the critic writes README.md with the Execution Graph there>',
 //   writingPlans: '<abs path to writing-plans SKILL.md>',
@@ -25,12 +25,25 @@ const A = args
 const done = A.done || {}
 const donePlans = done.plans || {}
 const q = p => `"${p}"`
+// Prepended to every prompt so agents stop rediscovering the toolkit, the facts and the environment's limits.
+function briefing(b = {}) {
+  const list = (title, xs) => xs && xs.length ? `${title}\n${xs.map(x => `  - ${x}`).join('\n')}` : ''
+  return [
+    list('Scratch toolkit (ready-made; use it, do not rewrite it):', b.toolkit),
+    b.toolkitRecipe ? `If the toolkit is gone, rebuild it: ${b.toolkitRecipe}` : '',
+    list('Already verified (do not re-derive):', b.facts),
+    list('Environment limits:', b.limits),
+    b.toolchain ? `Toolchain and style bar: ${b.toolchain}` : '',
+  ].filter(Boolean).join('\n')
+}
+const repoNote = r => `(always quote paths${/\s/.test(r) ? '; this one contains a space' : ''})`
 
 const RULES = `
 ${A.rules}
-Repo (always quote paths): ${q(A.repo)}, branch ${A.branch}. The code on ${A.branch} is the source of truth; read it and run it.
+Repo: ${q(A.repo)} ${repoNote(A.repo)}, branch ${A.branch}. The code on ${A.branch} is the source of truth; read it and run it.
 Binding docs: master plan ${q(A.plan)} (Global Constraints, Shared Contracts) and spec ${q(A.spec)}.
 Hard rules: never git --no-verify or any hook skip; a checkbox is ticked only with its artifact; batch verification (every edit first, then one build + lint pass; parameterized tests; one UI run that captures every screenshot); never kill a process you did not start.
+${briefing(A.briefing)}
 ${A.assets ? `Never commit anything under ${A.assets} and never copy copyrighted text verbatim; paraphrase.` : ''}
 `
 
@@ -63,7 +76,7 @@ Brief: ${c.brief}
 ${c.decisions && c.decisions.length ? `Pinned decisions (the user approved these; implement them, do not re-decide them):\n${c.decisions.map(d => `- ${d}`).join('\n')}` : ''}
 ${c.hint ? `A previous planner for this chunk was interrupted; its scratch prototype is at ${q(c.hint)}. Inspect it first and reuse what is sound; it may predate current ${A.branch}.` : ''}
 ${deps.length ? `Plans this chunk builds on (read them; use their exact names): ${deps.map(p => p.path).join(', ')}` : ''}
-Prototype in ${q(`${A.scratch}/${c.id}`)}, a scratch copy of ${A.branch}: apply your tasks' code, run build, lint and tests, and probe any SDK API you are unsure of. The plan carries only code you ran. Only your plan doc may change in the repo; do not commit.`
+Prototype in ${q(`${A.scratch}/${c.id}`)}, a scratch copy of ${A.branch}: apply your tasks' code, run build, lint and tests, and probe any SDK, library or service API you are unsure of against the thing itself. The plan carries only code you ran. Only your plan doc may change in the repo; do not commit.`
 }
 
 phase('Plan')
@@ -106,7 +119,7 @@ phase('Build')
 const build = await workflow({ scriptPath: A.waveBuild }, {
   repo: A.repo, worktrees: A.worktrees, branch: A.branch, prefix: A.prefix, plan: A.plan, spec: A.spec,
   trailer: A.trailer, rules: A.rules, setup: A.setup, mergeLock: A.mergeLock, locks: A.locks,
-  assets: A.assets, maxParallel: A.maxParallel, fold: A.fold, sideJobs: A.sideJobs, final: A.final,
+  assets: A.assets, briefing: A.briefing, maxParallel: A.maxParallel, fold: A.fold, sideJobs: A.sideJobs, final: A.final,
   tasks: graph.tasks, waves: graph.waves, done: done.tasks || [],
 })
 
