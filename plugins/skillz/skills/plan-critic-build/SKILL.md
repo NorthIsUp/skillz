@@ -86,6 +86,27 @@ told never to commit it or copy copyrighted text verbatim (`assets` in
 
 Commit research and plans as you go. Scratch under `/tmp` can vanish.
 
+### The run ledger: every run is resumable
+
+Every template takes `ledger`, a directory in the repo next to the master
+plan (for example `docs/plan/run/`). As its last step each research, planner
+and critic agent writes `<kind>-<id>.json` there (its structured result),
+appends a line to `PROGRESS.md`, and commits those files with its doc under
+the merge lock. Wave-build tasks need no entry: the reviewer's `merge: <id>`
+commit is the record, and the same commit appends the `PROGRESS.md` line.
+
+A crash, usage-limit stop, session restart or reboot therefore loses only the
+agents in flight. **Resume = relaunch with the same args.** A first cheap
+agent snapshots the ledger, the branch's `merge:` commits and the scratch
+directory; finished agents are skipped, and an unfinished planner whose
+scratch prototype survived gets it as its `hint`. The mechanics are in
+[references/recovery.md](references/recovery.md).
+
+Committed docs go through the repo's hooks, so before launch commit one sample
+doc with the run's trailer and fix whatever a hook rejects. Absolute-path lints
+and PII scanners have rejected both `/Users/<name>/...` paths and the trailer
+email. The templates tell agents to write paths repo-relative or as `~/...`.
+
 ### 2. Plan + critic workflow
 
 Launch [templates/plan-critic.workflow.js](templates/plan-critic.workflow.js)
@@ -103,8 +124,8 @@ key.
   code actually run against the real inputs, verified code is embedded in the
   doc, and the result is `{doc_path, summary, confidence, open_questions}`.
   Committed docs stay copyright-clean: no copyrighted images, audio or
-  verbatim text. You commit the docs. Items with `observe` get the observer
-  instructions.
+  verbatim text. Each agent commits its own doc and ledger entry. Items with
+  `observe` get the observer instructions.
 - **Research gates only the planners that need it.** Each section declares
   `needs: [researchKey]`. Sections with no needs start at once; the rest
   await only their own research. No barrier after all research.
@@ -125,8 +146,13 @@ key.
   **Execution Graph**: dependencies, waves of disjoint-file tasks, and the
   hot-files table.
 
-Review `fixes_applied`, `spec_changes` and `remaining_gaps` with the user,
-commit the plan, and get an explicit go before building.
+Check the result's `status` first. `INCOMPLETE` means an agent died (usage
+limit, crash). `resume.missing` names each one, and relaunching with the same
+args finishes the job. The run record says `completed` whenever the script
+returns, so never report "plan done" from that (lesson 16). On `complete`,
+review `fixes_applied`, `spec_changes` and `remaining_gaps` with the user
+(the critic has already committed its edits) and get an explicit go before
+building.
 
 ### 3. Wave build workflow
 
@@ -149,7 +175,10 @@ Without it, implementers either force stale code in or wander off the
 contracts. With it, every one of the worked example's 82 tasks merged.
 
 A wave runs in parallel, in batches of `maxParallel`. The run stops at the
-first wave with a failed task, so nothing builds on a broken merge.
+first wave with a failed task, so nothing builds on a broken merge, and
+returns `status: 'INCOMPLETE'`. It also returns `INCOMPLETE` when `not_run`
+is non-empty or the final verification is missing. A relaunch skips every task
+with a `merge: <id>` commit on the branch.
 
 Alongside the waves:
 
@@ -176,13 +205,14 @@ files), and fixes only small things, listing bigger ones as `gaps`.
 chunks with their decisions (a v2 list), skip the gate between critic and
 build: [templates/all-in-one.workflow.js](templates/all-in-one.workflow.js)
 plans chunks (dependent planners chained by `needs`), runs the critic, then
-calls wave-build as a sub-workflow. It takes `done.plans` for finished
-planners and `priority` for the chunk whose tasks go first.
+calls wave-build as a sub-workflow. It resumes from the ledger like the others
+and takes `priority` for the chunk whose tasks go first.
 
 ### 4. Finish
 
-Diff the graph against what ran (the result's `not_run`, lesson 5), then run
-the leftovers and the final verification's `gaps`. Then a whole-branch review
+Confirm `status: 'complete'`. Diff the graph against what ran (the result's
+`not_run`, lesson 5), then run the leftovers and the final verification's
+`gaps`. Then a whole-branch review
 and `superpowers-finishing-a-development-branch`.
 
 ## Orchestrator checklist
@@ -199,10 +229,13 @@ and `superpowers-finishing-a-development-branch`.
       limits, toolchain.
 - [ ] Gitignored assets: `/vendor` (no trailing slash) ignored, symlinked
       into worktrees, `assets` set.
+- [ ] `ledger` and `mergeLock` set; a sample doc with the run's trailer
+      committed cleanly through the repo's hooks.
 - [ ] Plan run launched from the template; the user was told milestones are
-      not pushed (lesson 7).
-- [ ] Critic report and `spec_changes` reviewed; plan committed; user said
-      go.
+      not pushed and where `PROGRESS.md` is (lesson 7).
+- [ ] Every run's result `status` read. `INCOMPLETE` was relaunched, never
+      recorded as done (lesson 16).
+- [ ] Critic report and `spec_changes` reviewed; user said go.
 - [ ] Hot files named, and their tasks serialized in the graph.
 - [ ] Lock paths chosen per project (`/tmp/<proj>-merge.lock`,
       `/tmp/<proj>-<resource>.lock`) with a `busyPattern` for stale checks.
@@ -222,11 +255,12 @@ Numbers in brackets come from the worked example below.
    the workflow: its result goes to you, and the workflow waits forever. To
    change course, edit a doc every agent reads (the master plan's Global
    Constraints; the build prompt says the current text wins). To recover,
-   stop the run, inject the finished results as `args.done`, and relaunch.
-2. **Inject finished results; don't trust replay.** Resume misses the cache
+   stop the run and relaunch it; the ledger supplies the finished results.
+2. **Resume from the ledger, not replay.** `resumeFromRunId` misses the cache
    whenever a call's inputs changed, even with an unchanged prompt (a
    changed agent type is enough), and a failed call early in the order
-   forces every later call to re-run. Every template takes `done`.
+   forces every later call to re-run. The ledger doesn't care: relaunch
+   fresh with the same args. `args.done` still overrides it by hand.
 3. **Batch verification.** Make every edit, then one build + lint pass.
    Parameterized tests over collections. One end-to-end run that captures
    every screenshot or output. Checking one control per build loop costs
@@ -240,18 +274,20 @@ Numbers in brackets come from the worked example below.
    lock forever. The template clears a lock older than `staleMinutes` when
    nothing matching `busyPattern` is running.
 7. **Workflows only notify on completion.** Tell the user up front that
-   milestones won't be pushed. When they ask, read the run's `journal.jsonl`
-   and report where it is.
+   milestones won't be pushed and that `<ledger>/PROGRESS.md` gains a line
+   per finished agent. When they ask, read `PROGRESS.md` (or
+   `git log -- <ledger>`), not the journal.
 8. **Name the hot files.** Files many tasks edit (dispatch switches, route
    tables, project or build files, task-runner config) go in the Execution
    Graph's hot-files table, and their tasks are serialized unless the edits
    are append-only.
 9. **Rescoping is cheap early.** To defer a chunk, stop the run, drop the
-   chunk, relaunch with `done`, and record it as deferred in the TODO.
+   chunk, relaunch, and record it as deferred in the TODO.
 10. **A session restart loses every agent, not its scratch.** In-flight
     workflow agents and named teammates are gone; messages to teammates fail.
-    Relaunch with `hint` pointing each planner at its predecessor's prototype,
-    clear stale locks, and re-spawn teammates with full context.
+    Clear stale locks and relaunch: an unfinished planner whose prototype is
+    still in `<scratch>/<id>` gets it as its `hint` automatically. Re-spawn
+    teammates with full context.
 11. **Machine hygiene.** Parallel builds plus heavy test resources exhaust a
     shared machine [27 GB of swap]. Cap `maxParallel` for heavy
     tasks and put every shared resource behind a lock. Helpers never kill
@@ -286,8 +322,20 @@ Numbers in brackets come from the worked example below.
     empty remote, point `refs/remotes/origin/HEAD` at the root commit so a
     hook that diffs against it can run; a fetch with prune removes it again.
 
-Recovery recipes (stopping, injecting, rescoping, restarts, hotfixes,
-leftovers, polling): [references/recovery.md](references/recovery.md).
+16. **A stopped run can read as finished.** Six of seven planners hit the
+    account's usage limit; the run record said `completed`, and a later
+    session's memory said "plan+critic done". Every template now returns
+    `status: 'INCOMPLETE'` with a `resume` block when any agent failed. Read
+    it before recording anything.
+
+17. **Uncommitted docs survive by luck.** Research docs and section plans
+    left for "the orchestrator commits" sat uncommitted for a day. When they
+    were committed, hooks rejected their `/Users/<name>/tmp` paths and the
+    trailer email. Agents now commit their own doc plus ledger entry as they
+    finish. Run one sample commit through the hooks before launch.
+
+Recovery recipes (relaunching, rescoping, restarts, hotfixes, leftovers,
+status): [references/recovery.md](references/recovery.md).
 
 ## Worked example: Flying Colors
 
