@@ -74,9 +74,7 @@ export const meta = { name: "run-args", description: "args for the plan run" };
 return {
   repo: "...",
   ledger: "...",
-  sections: [
-    /* ... */
-  ],
+  sections: [{ id: "s0", scope: "..." }],
 };
 ```
 
