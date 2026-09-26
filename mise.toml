@@ -53,6 +53,10 @@ run = "scripts/test-next-option-id.sh"
 description = "Self-check sync-rules hook (mirrors rules/, injects only changes)"
 run = "scripts/test-sync-rules.sh"
 
+[tasks.test-plan-critic-build]
+description = "Self-check plan-critic-build templates' resume logic (ledger, hints, INCOMPLETE status)"
+run = "node scripts/test-plan-critic-build.mjs"
+
 [tasks.version-guard]
 description = "Check plugin.json and marketplace.json versions agree"
 run = "scripts/version-guard.sh"

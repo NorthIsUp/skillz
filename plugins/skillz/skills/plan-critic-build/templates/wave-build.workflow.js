@@ -23,7 +23,8 @@ export const meta = {
 //   setup:       '<extra shell run in each new worktree, e.g. ln -s "$REPO/vendor" vendor>',  // optional
 //   tasks:       [{ id, file }],                        // from plan-critic's graph
 //   waves:       [[id, ...], ...],                      // fixed when this run starts
-//   done:        [id, ...],                             // already merged; skipped (inject after a stop)
+//   done:        [id, ...],                             // optional; merged over the "merge: <id>" commits already on the branch
+//   ledger:      '<abs dir in the repo for the run ledger>',  // required; each merge appends a line to its PROGRESS.md
 //   mergeLock:   '/tmp/<proj>-merge.lock',
 //   locks:       [{ name: 'shared-resource', path: '/tmp/<proj>-<resource>.lock', when: '<which commands need it>',
 //                   staleMinutes: 40, busyPattern: '<pgrep -f pattern that means the holder is still working>' }],  // optional
@@ -34,9 +35,13 @@ export const meta = {
 //   fold:        { prompt: '<what to fold into which plan files>', beforeWave: 7 },  // optional; 1-based wave that needs it
 //   sideJobs:    [{ label, prompt }],                   // optional; independent jobs, scratch output only
 //   final:       '<project steps: setup, every test suite, evidence to capture, spec feature inventory path>',  // required
+//   argsScript:  '<abs path of a script that returns these args>',  // optional; for args too big to pass inline
+//   ledgerLoaded: true,                                 // set by a parent workflow that already read the branch
 // }
-const A = args
+// Relaunching with the same args resumes: every task with a "merge: <id>" commit on the branch is skipped.
+const A = args.argsScript ? { ...(await workflow({ scriptPath: args.argsScript })), ...args } : args
 if (!A.final) throw new Error('args.final is required: the run is not done until a final verification reports on the whole project')
+if (!A.ledger) throw new Error('args.ledger is required: progress must be visible mid-run')
 const FILE = Object.fromEntries(A.tasks.map(t => [t.id, t.file]))
 const DONE = new Set(A.done || [])
 const prefix = A.prefix || 'task/'
@@ -62,6 +67,25 @@ function locked(lock, cmd, staleMinutes, busyPattern) {
   const alive = busyPattern ? ` && ! pgrep -f ${q(busyPattern)} >/dev/null` : ''
   return `n=0; until mkdir ${lock} 2>/dev/null; do n=$((n+1)); echo "waiting for ${lock} ($n)"; if [ -n "$(find ${lock} -maxdepth 0 -mmin +${staleMinutes})" ]${alive}; then rmdir ${lock}; fi; sleep 10; done; trap 'rmdir ${lock}' EXIT; ${cmd}`
 }
+
+// Scripts can't read git, so one cheap agent snapshots the merged task ids into a script that workflow() runs.
+function ledgerCmd(out) {
+  return [
+    `mkdir -p ${q(A.worktrees)}`,
+    `{ echo 'export const meta = { name: "run-ledger", description: "task ids already merged" }'`,
+    `echo 'return { entries: [], scratch: [], merged: ['`,
+    `git -C ${q(A.repo)} log --merges --format=%s ${A.branch} | sed -n 's/^merge: \\(.*\\)$/"\\1",/p'`,
+    `echo '] }'; } > ${q(out)} && echo ok`,
+  ].join('; ')
+}
+async function loadLedger(out) {
+  await agent(`Run exactly this one shell command, unchanged, and return its output:\n${ledgerCmd(out)}`, { label: 'ledger', phase: 'Build', effort: 'low' })
+  try { return await workflow({ scriptPath: out }) } catch (e) {
+    log(`Ledger snapshot unreadable (${e.message}); only args.done counts as merged`)
+    return { entries: [], merged: [], scratch: [] }
+  }
+}
+const progress = `${A.ledger}/PROGRESS.md`
 
 const lockRules = (A.locks || []).map(l =>
   `- ${l.when} must hold the ${l.name} lock, in ONE bash invocation: ${locked(l.path, '<command>', l.staleMinutes || 40, l.busyPattern)}  Release it as soon as the command ends.`).join('\n')
@@ -140,7 +164,8 @@ If truly blocked (the plan contradicts reality beyond this task's scope), stop a
 
 function reviewPrompt(id, impl) {
   const br = `${prefix}${slug(id)}`, wt = `${A.worktrees}/${slug(id)}`
-  const merge = locked(A.mergeLock, `cd ${q(A.repo)} && git merge --no-ff ${br} -m "merge: ${id}" -m "${A.trailer}"`, 30, `git merge --no-ff ${prefix}`)
+  // The "merge: <id>" subject is how a relaunch knows the task is done; the PROGRESS line rides in the same commit.
+  const merge = locked(A.mergeLock, `cd ${q(A.repo)} && git merge --no-ff --no-commit ${br} && mkdir -p ${q(A.ledger)} && echo "- task ${id}: merged" >> ${q(progress)} && git add ${q(progress)} && git commit -m "merge: ${id}" -m "${A.trailer}"`, 30, `git merge --no-ff ${prefix}`)
   return `${RULES}
 TASK: You are a fresh reviewer for plan task ${id} ("### Task ${id}" in ${q(FILE[id])}) on branch ${br} in ${q(wt)}. Review it, then merge it.
 Implementer report: ${JSON.stringify(impl)}
@@ -166,6 +191,10 @@ async function runTask(id) {
   return { id, ok: true, deviations: impl.deviations, concerns: [...impl.concerns, ...rev.open_concerns], fixed: rev.issues_fixed }
 }
 
+phase('Build')
+if (!A.ledgerLoaded) for (const id of (await loadLedger(`${A.worktrees}/.ledger.workflow.js`)).merged) DONE.add(id)
+log(`Already merged: ${DONE.size} task(s)`)
+
 const scheduled = new Set(A.waves.flat())
 const unscheduled = A.tasks.map(t => t.id).filter(id => !scheduled.has(id) && !DONE.has(id))
 if (unscheduled.length) log(`In the graph but in no wave, so this run will not execute them: ${unscheduled.join(', ')}`)
@@ -183,7 +212,6 @@ Write only to scratch outside the repo and return the output paths. Never commit
   { label: `side:${j.label}`, phase: 'Side jobs' }))
 let fold = null
 
-phase('Build')
 const results = []
 let failed = null
 for (let w = 0; w < A.waves.length; w++) {
@@ -230,10 +258,15 @@ ${A.final}
 
 const merged = results.filter(r => r.ok).map(r => r.id)
 const ran = new Set([...DONE, ...merged])
+const notRun = [...A.tasks.map(t => t.id).filter(id => !ran.has(id)), ...(fold ? fold.new_tasks : [])]
+// The run record says "completed" whenever the script returns; `status` is what says whether the work did.
+const status = failed || notRun.length || !final ? 'INCOMPLETE' : 'complete'
+if (status !== 'complete') log(`INCOMPLETE: ${failed ? `wave ${failed.wave} failed (${failed.tasks.map(t => t.id).join(', ')}); ` : ''}${notRun.length} task(s) not run${final ? '' : '; final verification missing'}. Fix the cause and relaunch with the same args; merged tasks are skipped.`)
 return {
+  status,
   merged,
   failed,
-  not_run: [...A.tasks.map(t => t.id).filter(id => !ran.has(id)), ...(fold ? fold.new_tasks : [])],
+  not_run: notRun,
   concerns: results.filter(r => r.ok && r.concerns.length).map(r => ({ id: r.id, concerns: r.concerns, deviations: r.deviations })),
   side,
   final,

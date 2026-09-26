@@ -11,6 +11,7 @@ docs/superpowers/plans/
   YYYY-MM-DD-<project>/
     00-foundation.md               # section plans, tasks <id>-T1, -T2, …
     01-<area>.md
+    run/                           # ledger: <kind>-<id>.json + PROGRESS.md, committed per agent
 docs/research/<key>.md             # research, committed
 ```
 
