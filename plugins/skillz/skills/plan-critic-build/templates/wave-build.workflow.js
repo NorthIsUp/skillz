@@ -27,7 +27,7 @@ export const meta = {
 //   ledger:      '<abs dir in the repo for the run ledger>',  // required; each merge appends a line to its PROGRESS.md
 //   mergeLock:   '/tmp/<proj>-merge.lock',
 //   locks:       [{ name: 'shared-resource', path: '/tmp/<proj>-<resource>.lock', when: '<which commands need it>',
-//                   staleMinutes: 40, busyPattern: '<pgrep -f pattern that means the holder is still working>' }],  // optional
+//                   staleMinutes: 40, busyPattern: '<plain regex for the holder's working process, e.g. pytest>' }],  // optional
 //   briefing:    { toolkit: ['<path>  <fn(args) -> result>'], toolkitRecipe: '<how to rebuild the toolkit>',
 //                  facts: ['<already verified>'], limits: ['<environment limit>'], toolchain: '<versions and style bar>' },  // optional
 //   assets:      'vendor/',                             // optional; gitignored or copyrighted, symlinked into each worktree via `setup`
@@ -60,11 +60,15 @@ function briefing(b = {}) {
 }
 const repoNote = r => `(always quote paths${/\s/.test(r) ? '; this one contains a space' : ''})`
 
+// Every waiter's shell (and the holder's, whose child is what counts) has busyPattern in its own
+// command line, so lock loops are dropped from the process list. `[p]ytest` keeps grep from matching itself.
+const bracketed = p => /^[\w /-]/.test(p) ? `[${p[0]}]${p.slice(1)}` : /^\\[^\w\\^]/.test(p) ? `[${p[1]}]${p.slice(2)}` : p
+
 // mkdir is atomic, so the directory is the lock. A holder that died leaves it behind; after
 // staleMinutes with nothing matching `busyPattern` still running, the next waiter clears it.
 // The echo matters: the runtime kills an agent after ~3 silent minutes.
 function locked(lock, cmd, staleMinutes, busyPattern) {
-  const alive = busyPattern ? ` && ! pgrep -f ${q(busyPattern)} >/dev/null` : ''
+  const alive = busyPattern ? ` && ! ps -Ao args= | grep -v 'until mkdir' | grep -Eq ${q(bracketed(busyPattern))}` : ''
   return `n=0; until mkdir ${lock} 2>/dev/null; do n=$((n+1)); echo "waiting for ${lock} ($n)"; if [ -n "$(find ${lock} -maxdepth 0 -mmin +${staleMinutes})" ]${alive}; then rmdir ${lock}; fi; sleep 10; done; trap 'rmdir ${lock}' EXIT; ${cmd}`
 }
 

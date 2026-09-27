@@ -2,8 +2,8 @@
 // Self-check for the plan-critic-build templates' resume logic and split critic stage. Run: mise run test-plan-critic-build
 // Runs the real templates with stubbed agents; only the ledger agent is real (it runs its shell command),
 // so the ledger snapshot, done/hint derivation and INCOMPLETE status are exercised end to end.
-import { execSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { execSync, spawn } from 'node:child_process'
+import { existsSync, mkdirSync, utimesSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -35,6 +35,14 @@ async function run(template, args, reply) {
   const result = await compile(join(T, template))(agent, parallel, () => {}, () => {}, args, workflow)
   const prompt = label => (calls.find(c => c.label === label) || {}).prompt || ''
   return { result, labels: calls.map(c => c.label).filter(l => l !== 'ledger'), prompt }
+}
+
+// The busy check's pattern must still find `want` but never the lock loop's own text (the caller's command after it may).
+function selfSafe(cmds, want, label = want) {
+  const cmd = cmds.find(c => new RegExp(`(pgrep -f|grep -Eq) "\\[?${want[0]}\\]?${want.slice(1)}"`).test(c)) || ''
+  const pat = (cmd.match(/(?:pgrep -f|grep -Eq) "([^"]*)"/) || [])[1]
+  const loop = cmd.split("; trap '")[0]
+  check(`busy pattern for ${label} matches it but not its own lock loop`, pat && new RegExp(pat).test(want) && !new RegExp(pat).test(loop), loop)
 }
 
 function fixture() {
@@ -82,6 +90,7 @@ console.log('plan-critic: relaunch after a usage-limit stop')
   check('only unfinished agents launch', JSON.stringify(r.labels) === JSON.stringify(['research:r3', 'write:s2', 'write:s1']), JSON.stringify(r.labels))
   check('leftover prototype becomes the hint', r.prompt('write:s2').includes(`prototype is at "${f.scratch}/s2"`))
   check('no hint without a prototype', !r.prompt('write:s1').includes('interrupted'))
+  selfSafe([...r.prompt('research:r3').matchAll(/n=0; until mkdir .*/g)].map(m => m[0]), 'git commit', 'plan-critic git commit')
   check('agents commit their ledger entry', r.prompt('research:r3').includes('research-r3.json') && r.prompt('research:r3').includes('git commit'))
   check('failed planner => INCOMPLETE, critic skipped', r.result.status === 'INCOMPLETE' && !r.labels.includes('critic'))
   check('resume names exactly what is missing', JSON.stringify(r.result.resume.missing) === JSON.stringify({ research: [], sections: ['s1'], critic: ['all'] }), JSON.stringify(r.result.resume.missing))
@@ -187,6 +196,38 @@ console.log('wave-build: merged tasks come from the branch')
   r = await run('wave-build.workflow.js', args, buildReply(null))
   check('relaunch runs only T3, then final', JSON.stringify(r.labels) === JSON.stringify(['impl:T3', 'review:T3', 'final-verify']), JSON.stringify(r.labels))
   check('relaunch completes', r.result.status === 'complete')
+}
+
+console.log('locks: the stale check never counts a lock loop as the holder')
+{
+  const f = fixture()
+  const busy = `zzbusy${process.pid}`
+  const lock = join(f.d, 'res.lock')
+  const args = {
+    repo: f.repo, ledger: f.ledger, worktrees: join(f.d, 'wt'), branch: 'main', mergeLock: join(f.d, 'merge.lock'), trailer: 'x',
+    plan: 'plan.md', spec: 'spec.md', rules: '', final: 'run tests', prefix: 'adam/x/',
+    locks: [['l1', 'pytest'], ['l2', 'git commit'], ['res', busy]].map(([name, busyPattern]) => ({ name, path: join(f.d, `${name}.lock`), when: name, staleMinutes: 1, busyPattern })),
+    tasks: [{ id: 'T1', file: 'p.md' }], waves: [['T1']],
+  }
+  const r = await run('wave-build.workflow.js', args, buildReply(null))
+  const cmds = [...r.prompt('impl:T1').matchAll(/n=0; until mkdir .*?(?=  Release it)/g), ...r.prompt('review:T1').matchAll(/n=0; until mkdir .*/g)].map(m => m[0])
+  for (const want of ['pytest', 'git commit', 'git merge --no-ff adam/x/']) selfSafe(cmds, want)
+
+  // A sibling waiting forever on a fresh lock carries the busy pattern in its own command line, as a real waiter's `<command>` does.
+  const template = cmds.find(c => c.includes(lock)).replace('sleep 10', 'sleep 0.2')
+  const other = join(f.d, 'other.lock')
+  mkdirSync(other)
+  const sibling = spawn('/bin/bash', ['-c', template.replaceAll(lock, other).replace('<command>', `echo ${busy}-sibling`)], { stdio: 'ignore' })
+  const attempt = () => { try { return execSync(template.replace('<command>', `echo ran ${busy}`), { shell: '/bin/bash', timeout: 3000, stdio: ['ignore', 'pipe', 'ignore'] }).toString().includes('ran') } catch { return false } }
+  const stale = () => { mkdirSync(lock, { recursive: true }); utimesSync(lock, new Date(0), new Date(0)) }
+  await new Promise(res => setTimeout(res, 300))
+  stale()
+  check('stale lock is cleared while sibling waiters run', attempt() && !existsSync(lock))
+  const holder = spawn('node', ['-e', 'setTimeout(() => {}, 30000)', busy], { stdio: 'ignore' })
+  await new Promise(res => setTimeout(res, 300))
+  stale()
+  check('stale lock is kept while a real holder matches', !attempt() && existsSync(lock))
+  holder.kill(); sibling.kill()
 }
 
 console.log('all-in-one: ledger plans, scratch hints, nested build')

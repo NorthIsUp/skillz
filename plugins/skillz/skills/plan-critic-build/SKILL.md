@@ -258,7 +258,8 @@ and `superpowers-finishing-a-development-branch`.
 - [ ] Critic report and `spec_changes` reviewed; user said go.
 - [ ] Hot files named, and their tasks serialized in the graph.
 - [ ] Lock paths chosen per project (`/tmp/<proj>-merge.lock`,
-      `/tmp/<proj>-<resource>.lock`) with a `busyPattern` for stale checks.
+      `/tmp/<proj>-<resource>.lock`) with a plain `busyPattern` (`pytest`) for
+      stale checks; the template brackets it and skips lock loops.
 - [ ] `maxParallel` set for heavy builds; every shared resource behind a
       lock.
 - [ ] Stopped runs' locks cleared before any relaunch.
@@ -292,7 +293,7 @@ Numbers in brackets come from the worked example below.
    the leftovers.
 6. **Shared-resource locks need stale handling.** A dead holder leaves the
    lock forever. The template clears a lock older than `staleMinutes` when
-   nothing matching `busyPattern` is running.
+   no process outside a lock loop matches `busyPattern`.
 7. **Workflows only notify on completion.** Tell the user up front that
    milestones won't be pushed and that `<ledger>/PROGRESS.md` gains a line
    per finished agent. When they ask, read `PROGRESS.md` (or
