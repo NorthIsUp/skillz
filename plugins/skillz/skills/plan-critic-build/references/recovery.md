@@ -31,7 +31,8 @@ machine rebooted, the usage limit hit) or when prompts must change.
 
 1. Stop the workflow (TaskStop on its task id), if it is still running.
 2. Clear the stopped run's locks: check nothing matching their busy pattern
-   is running, then `rmdir` each. A stale lock makes every new agent wait
+   is running (`ps -Ao args= | grep -v 'until mkdir' | grep -E '[p]ytest'`;
+   plain `pgrep` also finds the waiters), then `rmdir` each. A stale lock makes every new agent wait
    until the runtime kills it for stalling (SKILL.md lesson 13).
 3. Make sure the machine stays awake (SKILL.md lesson 19).
 4. Relaunch with the same `scriptPath` and `args`, without
@@ -139,5 +140,6 @@ returned.
 
 Both locks are `mkdir` directories under `/tmp`, so a reboot clears them.
 A holder that died leaves its lock, and the template's waiter clears it once it
-is older than `staleMinutes` and no process matches `busy`. To clear one by
+is older than `staleMinutes` and no process outside a lock loop matches
+`busyPattern`. To clear one by
 hand, check that nothing is using the resource, then `rmdir` it.

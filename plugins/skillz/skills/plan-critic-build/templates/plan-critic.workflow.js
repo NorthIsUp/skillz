@@ -38,10 +38,14 @@ const research = A.research || []
 const q = p => `"${p}"`
 const slug = id => id.toLowerCase().replace(/[^a-z0-9]+/g, '-')
 
+// Every waiter's shell (and the holder's, whose child is what counts) has busyPattern in its own
+// command line, so lock loops are dropped from the process list. `[p]ytest` keeps grep from matching itself.
+const bracketed = p => /^[\w /-]/.test(p) ? `[${p[0]}]${p.slice(1)}` : /^\\[^\w\\^]/.test(p) ? `[${p[1]}]${p.slice(2)}` : p
+
 // mkdir is atomic, so the directory is the lock; a waiter clears one older than staleMinutes whose holder is gone.
 // The echo matters: the runtime kills an agent after ~3 silent minutes.
 function locked(lock, cmd, staleMinutes, busyPattern) {
-  const alive = busyPattern ? ` && ! pgrep -f ${q(busyPattern)} >/dev/null` : ''
+  const alive = busyPattern ? ` && ! ps -Ao args= | grep -v 'until mkdir' | grep -Eq ${q(bracketed(busyPattern))}` : ''
   return `n=0; until mkdir ${lock} 2>/dev/null; do n=$((n+1)); echo "waiting for ${lock} ($n)"; if [ -n "$(find ${lock} -maxdepth 0 -mmin +${staleMinutes})" ]${alive}; then rmdir ${lock}; fi; sleep 10; done; trap 'rmdir ${lock}' EXIT; ${cmd}`
 }
 
