@@ -4,7 +4,7 @@ export const meta = {
   whenToUse: 'A working codebase plus a list of approved chunks (a v2 list, a TODO list) with decisions already pinned; no user gate needed between critic and build',
   phases: [
     { title: 'Plan', detail: 'one design + TDD plan per chunk; a chunk starts when the chunks it needs are planned' },
-    { title: 'Critique', detail: 'cross-chunk consistency, compile check, task graph and waves, priority chunk first' },
+    { title: 'Critique', detail: 'one reconciler per chunk, combined compile check, task graph computed from the task data, priority chunk first' },
     { title: 'Build', detail: 'wave-build.workflow.js as a sub-workflow: implement, review, merge, final verification' },
   ],
 }
@@ -26,6 +26,7 @@ export const meta = {
 // Relaunching with the same args resumes: the ledger and the branch's "merge: <id>" commits mark what finished.
 const A = args.argsScript ? { ...(await workflow({ scriptPath: args.argsScript })), ...args } : args
 if (!A.ledger) throw new Error('args.ledger is required: finished results must be committed as they land')
+if (A.chunks.some(c => c.id.toLowerCase() === 'graph')) throw new Error('chunk id "graph" is reserved: critic-graph.json is the graph writer\'s ledger entry')
 const q = p => `"${p}"`
 const slug = id => id.toLowerCase().replace(/[^a-z0-9]+/g, '-')
 
@@ -111,6 +112,76 @@ const GRAPH_SCHEMA = {
   required: ['fixes_applied', 'remaining_gaps', 'tasks', 'waves'],
 }
 
+const strings = { type: 'array', items: { type: 'string' } }
+const RECONCILE_SCHEMA = {
+  type: 'object',
+  properties: {
+    tasks: { ...PLAN_SCHEMA.properties.tasks, description: "this chunk's full task list after your edits" },
+    produces: strings,
+    fixes_applied: strings,
+    remaining_gaps: strings,
+  },
+  required: ['tasks', 'produces', 'fixes_applied', 'remaining_gaps'],
+}
+const COMPILE_SCHEMA = {
+  type: 'object',
+  properties: {
+    ran: { ...strings, description: 'each command you ran on the combined copy, with its result' },
+    fixes_applied: strings,
+    remaining_gaps: strings,
+    tasks_changed: {
+      type: 'array',
+      items: { type: 'object', properties: { id: { type: 'string' }, files: strings, depends_on: strings }, required: ['id', 'files', 'depends_on'] },
+    },
+  },
+  required: ['ran', 'fixes_applied', 'remaining_gaps', 'tasks_changed'],
+}
+const WRITER_SCHEMA = { type: 'object', properties: { remaining_gaps: strings }, required: ['remaining_gaps'] }
+
+// Deterministic, so no agent reasons over every plan: waves are topological layers in which no two tasks
+// share a file, so the tasks on a hot file land in successive waves. `first` tasks claim each wave first.
+function computeGraph(tasks, first = () => false) {
+  const gaps = [], byId = new Map()
+  for (const t of tasks) byId.has(t.id) ? gaps.push(`duplicate task id ${t.id} in ${t.file}; kept the first`) : byId.set(t.id, t)
+  const all = [...byId.values()]
+  for (const t of all) for (const d of t.depends_on) if (!byId.has(d)) gaps.push(`${t.id} depends on unknown task ${d}; edge ignored`)
+  const waveOf = {}, waves = []
+  let left = [...all.filter(first), ...all.filter(t => !first(t))]
+  while (left.length) {
+    const wave = [], used = new Set()
+    for (const t of left) {
+      if (t.depends_on.some(d => byId.has(d) && !(d in waveOf)) || t.files.some(f => used.has(f))) continue
+      wave.push(t.id)
+      t.files.forEach(f => used.add(f))
+    }
+    if (!wave.length) break
+    wave.forEach(id => { waveOf[id] = waves.length })
+    waves.push(wave)
+    left = left.filter(t => !(t.id in waveOf))
+  }
+  if (left.length) gaps.push(`not scheduled, dependency cycle: ${left.map(t => t.id).join(', ')}`)
+  const touched = {}
+  for (const t of all) for (const f of new Set(t.files)) (touched[f] = touched[f] || []).push(t.id)
+  const hot_files = Object.entries(touched).filter(([, ids]) => ids.length > 1).map(([file, ids]) =>
+    ({ file, tasks: ids, how: `serialized: waves ${ids.map(id => id in waveOf ? waveOf[id] + 1 : '-').join(', ')}` }))
+  return { tasks: all.map(({ id, file, depends_on }) => ({ id, file, depends_on })), waves, hot_files, gaps }
+}
+function graphMarkdown(g) {
+  const table = (head, rows) => [`| ${head.join(' | ')} |`, `| ${head.map(() => '---').join(' | ')} |`, ...rows.map(r => `| ${r.join(' | ')} |`)]
+  return ['## Execution Graph', '',
+    ...table(['Task', 'Plan file', 'Depends on'], g.tasks.map(t => [t.id, t.file, t.depends_on.join(', ') || '-'])), '',
+    '### Waves', '', ...g.waves.map((w, i) => `${i + 1}. ${w.join(', ')}`), '',
+    '### Hot files', '', ...(g.hot_files.length ? table(['File', 'Tasks', 'How'], g.hot_files.map(h => [h.file, h.tasks.join(', '), h.how])) : ['None.']),
+    ...(g.gaps.length ? ['', '### Not scheduled', '', ...g.gaps.map(x => `- ${x}`)] : []),
+  ].join('\n')
+}
+// The monolithic critic died this way: one silent 4-17 minute turn at 100k+ context, killed at 3 minutes, restarted from zero.
+const STALL = `
+Anti-stall rules (a turn with no output for about 3 minutes is killed, and the retry starts from zero):
+- Edit in small steps: one task or one block per edit, never a whole-file rewrite.
+- Keep each turn short: read big files in chunks of at most 300 lines, only the parts you need; decide, act, move on.
+- Print one progress line (echo) after each task or check you finish.`
+
 function planPrompt(c, deps) {
   return `${RULES}
 TASK: Design and plan chunk ${c.id} (${c.slug}). Write ONE document ${q(`${A.planDir}/${c.id}-${c.slug}.md`)}: a short design section (decisions, data and UI shapes, what changes where, test strategy), then TDD tasks in writing-plans format (read ${q(A.writingPlans)}). Task ids ${c.id}-T1, ${c.id}-T2, ...; depends_on may name tasks in other chunks. No placeholders.
@@ -127,11 +198,12 @@ const L = await loadLedger(`${A.scratch}/.ledger.workflow.js`)
 const fromLedger = kind => Object.fromEntries(L.entries.filter(e => e.kind === kind).map(e => [e.id, e.result]))
 const done = A.done || {}
 const donePlans = { ...fromLedger('plan'), ...done.plans }
-const doneCritic = done.critic || fromLedger('critic').graph
+const doneCritic = fromLedger('critic')  // one entry per chunk reconciler, plus "graph" from the graph writer
+const doneCompile = fromLedger('compile').all
 const doneTasks = [...new Set([...(done.tasks || []), ...L.merged])]
 const scratchLeft = new Set(L.scratch)
 const hintFor = c => c.hint || (scratchLeft.has(c.id) ? `${A.scratch}/${c.id}` : '')
-log(`Ledger: ${Object.keys(donePlans).length} chunk plans done${doneCritic ? ', critic done' : ''}, ${doneTasks.length} task(s) merged`)
+log(`Ledger: ${Object.keys(donePlans).length} chunk plans and ${Object.keys(doneCritic).length} critic steps done, ${doneTasks.length} task(s) merged`)
 // The run record says "completed" whenever the script returns; `status` is what says whether the work did.
 const incomplete = (what, extra) => {
   log(`INCOMPLETE: missing ${what}. Relaunch with the same args; the ledger skips what finished.`)
@@ -152,16 +224,73 @@ const missing = A.chunks.filter((c, i) => !planResults[i]).map(c => c.id)
 if (missing.length) return incomplete(`chunk plans ${missing.join(', ')}, critic, build`, { plans: planResults })
 
 phase('Critique')
-const graph = doneCritic || await agent(`${RULES}
-TASK: Plan critic. Read every chunk plan in ${q(A.planDir)} fully and the code they touch. Chunk summaries: ${JSON.stringify(A.chunks.map((c, i) => ({ id: c.id, ...planResults[i] })))}
-FIX IN PLACE: every consumes met by an earlier task's produces with identical signatures; no two chunks define one symbol or file differently; tasks editing the same file ordered through depends_on; every brief item maps to a task (add tasks where missing); placeholders removed; every run command exists in the task runner.
-Compile check: assemble every chunk's code together in one scratch copy of ${A.branch} under ${q(A.scratch)}, build, lint and test it, and fix the plans where it breaks.
-${A.priority ? `PRIORITY (user): chunk ${A.priority} matters most. Put its tasks in the earliest waves their dependencies allow, never behind work they don't depend on.` : ''}
-Write "## Execution Graph" (dependencies, waves of disjoint-file tasks, hot files) into ${q(`${A.planDir}/README.md`)}.
-Return every task with the plan file holding its "### Task <id>" block, and the waves.
-${record('critic', 'graph', [A.planDir])}`,
-  { label: 'critic', phase: 'Critique', schema: GRAPH_SCHEMA })
-if (!graph) return incomplete('critic, build', { plans: planResults })
+const summaries = A.chunks.map((c, i) => ({ id: c.id, ...planResults[i] }))
+const order = A.chunks.map(c => c.id).join(', ')
+let graph = done.critic
+if (!graph) {
+  const reconciled = {}
+  for (const c of A.chunks) {
+    if (doneCritic[c.id]) { reconciled[c.id] = Promise.resolve(doneCritic[c.id]); continue }
+    reconciled[c.id] = (async () => {
+      await null  // needs is read after an await, so forward references resolve
+      const up = await Promise.all((c.needs || []).map(id => reconciled[id]))
+      const mine = summaries.find(x => x.id === c.id)
+      return agent(`${RULES}
+TASK: Reconcile chunk ${c.id}'s plan ${q(mine.path)} with the other chunks. You own this one file: edit nothing else except the ledger. Other reconcilers are editing the other chunk plans at the same time.
+Brief: ${c.brief}
+Your chunk as planned: ${JSON.stringify(mine)}
+Final produces of the chunks you build on (match them verbatim): ${JSON.stringify((c.needs || []).map((id, i) => [id, (up[i] || summaries.find(x => x.id === id) || {}).produces]))}
+Produces of every other chunk, as planned: ${JSON.stringify(summaries.filter(x => x.id !== c.id).map(x => [x.id, x.produces]))}
+Consumes of the chunks that build on yours: ${JSON.stringify(A.chunks.filter(x => (x.needs || []).includes(c.id)).map(x => [x.id, summaries.find(y => y.id === x.id).consumes]))}
+Fix in place, one task at a time:
+1. Consumes: every name you consume matches a producer's produces verbatim (name and signature), and the producing task is in the consuming task's depends_on. Change your side, never the producer's. A name nobody produces: add the task if it is in your brief, else list it in remaining_gaps with the chunk that should produce it.
+2. Collisions: when you define a symbol or file another chunk defines differently, the chunk earlier in this order keeps it: ${order}. If that isn't you, rename yours and every use in your file.
+3. Brief coverage: every brief item maps to a task; add tasks where one is missing.
+4. Placeholders: TBD, TODO, "similar to", sketches instead of code. Replace each with real code.
+5. Tooling: every run command your tasks use exists in the task runner or is created by an earlier task.
+If your prototype ${q(`${A.scratch}/${c.id}`)} exists, apply your code changes there too and run the narrowest build or test that covers them, in the background with a log.
+Return your chunk's full task list after the edits (ids, titles, every file each task touches, depends_on) and its produces.
+${STALL}
+${record('critic', c.id, [mine.path])}`, { label: `reconcile:${c.id}`, phase: 'Critique', schema: RECONCILE_SCHEMA, effort: 'medium' })
+    })()
+  }
+  const recs = await Promise.all(A.chunks.map(c => reconciled[c.id]))
+  const lost = A.chunks.filter((c, i) => !recs[i]).map(c => `reconcile:${c.id}`)
+  if (lost.length) return incomplete(`critic steps ${lost.join(', ')}, compile, graph, build`, { plans: planResults })
+
+  const tasks = A.chunks.flatMap((c, i) => recs[i].tasks.map(t => ({ ...t, file: summaries[i].path })))
+  const priorityFirst = t => !!A.priority && t.id.startsWith(`${A.priority}-`)
+  const compile = doneCompile || await agent(`${RULES}
+TASK: Combined compile check. Each planner proved its own chunk in its prototype; you prove all chunks together.
+Chunks in order, with plan file and prototype (a scratch copy of ${A.branch} with that chunk's code applied, updated by its reconciler; gone after a reboot): ${JSON.stringify(A.chunks.map((c, i) => [c.id, summaries[i].path, `${A.scratch}/${c.id}`]))}
+Draft waves (recomputed from your tasks_changed): ${JSON.stringify(computeGraph(tasks, priorityFirst).waves)}
+1. Make one fresh scratch copy of ${A.branch} at ${q(`${A.scratch}/_combined`)}. Apply each chunk's changes in the order above: the prototype's diff against ${A.branch} (git -C <prototype> diff ${A.branch}, or diff -ruN when it is not a git checkout). Where a prototype is gone, apply that chunk's task code from its plan, one task at a time. Do not read the plans otherwise.
+2. Build, lint and test the combined copy in the background with the output in a log, polling it.
+3. Where it breaks, fix the owning task's code in its plan and in the combined copy, one task at a time, then re-run.
+Never add, remove or rename tasks; list what needs that in remaining_gaps. When a fix changes a task's files or depends_on, return that task in tasks_changed.
+${STALL}
+${record('compile', 'all', [A.planDir])}`, { label: 'compile', phase: 'Critique', schema: COMPILE_SCHEMA })
+  if (!compile) return incomplete('critic steps compile, graph, build', { plans: planResults })
+
+  const changed = Object.fromEntries(compile.tasks_changed.map(t => [t.id, t]))
+  const g = computeGraph(tasks.map(t => changed[t.id] ? { ...t, files: changed[t.id].files, depends_on: changed[t.id].depends_on } : t), priorityFirst)
+  const writer = doneCritic.graph || await agent(`${RULES}
+TASK: Write the Execution Graph into ${q(`${A.planDir}/README.md`)}. The script computed it from the reconciled task data; do not re-derive it or read the chunk plans in full.
+1. Replace any existing "## Execution Graph" section of that file with exactly this text, placed at the end (create the file if missing):
+${graphMarkdown(g)}
+2. Sanity check: grep each plan file for its "### Task <id>" headings. List every task in the graph without one, and anything else in the graph that contradicts the plans, in remaining_gaps. Do not edit chunk plans.
+${STALL}
+${record('critic', 'graph', [A.planDir])}`, { label: 'graph-writer', phase: 'Critique', schema: WRITER_SCHEMA, effort: 'low' })
+  if (!writer) return incomplete('critic step graph, build', { plans: planResults })
+
+  const tagged = (key, sources) => sources.flatMap(([id, r]) => r[key].map(x => `${id}: ${x}`))
+  const sources = [...A.chunks.map((c, i) => [c.id, recs[i]]), ['compile', compile]]
+  graph = {
+    fixes_applied: [...tagged('fixes_applied', sources), ...compile.ran.map(x => `compile ran: ${x}`)],
+    remaining_gaps: [...tagged('remaining_gaps', [...sources, ['graph', writer]]), ...g.gaps],
+    tasks: g.tasks, waves: g.waves,
+  }
+}
 
 // A priority task could run one wave after its latest dependency; later than that is flagged, not reordered.
 if (A.priority) {

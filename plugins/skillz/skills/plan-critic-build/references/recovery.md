@@ -33,20 +33,31 @@ machine rebooted, the usage limit hit) or when prompts must change.
 2. Clear the stopped run's locks: check nothing matching their busy pattern
    is running, then `rmdir` each. A stale lock makes every new agent wait
    until the runtime kills it for stalling (SKILL.md lesson 13).
-3. Relaunch with the same `scriptPath` and `args`, without
+3. Make sure the machine stays awake (SKILL.md lesson 19).
+4. Relaunch with the same `scriptPath` and `args`, without
    `resumeFromRunId`.
 
 The ledger does the rest. The first agent snapshots it into
 `<scratch>/.ledger.workflow.js` (wave-build uses `<worktrees>/`), which the
 script loads with `workflow()`, since scripts can't read files themselves:
 
-| Finished work     | Where the relaunch finds it                             |
-| ----------------- | ------------------------------------------------------- |
-| research result   | `<ledger>/research-<key>.json`                          |
-| section / chunk   | `<ledger>/section-<id>.json`, `<ledger>/plan-<id>.json` |
-| critic graph      | `<ledger>/critic-graph.json`                            |
-| merged build task | a `merge: <id>` commit on the integration branch        |
-| interrupted work  | `<scratch>/<id>/`, passed to that planner as `hint`     |
+| Finished work      | Where the relaunch finds it                             |
+| ------------------ | ------------------------------------------------------- |
+| research result    | `<ledger>/research-<key>.json`                          |
+| section / chunk    | `<ledger>/section-<id>.json`, `<ledger>/plan-<id>.json` |
+| spec coverage      | `<ledger>/coverage-spec.json`                           |
+| section reconciler | `<ledger>/critic-<id>.json`                             |
+| compile check      | `<ledger>/compile-all.json`                             |
+| graph writer       | `<ledger>/critic-graph.json`                            |
+| merged build task  | a `merge: <id>` commit on the integration branch        |
+| interrupted work   | `<scratch>/<id>/`, passed to that planner as `hint`     |
+
+The Execution Graph itself is never stored: it is recomputed in the script
+from the reconcilers' task lists plus the compile check's `tasks_changed`, so a
+relaunch with every critic entry present launches no agent and returns the same
+graph. A lost reconciler shows up in `resume.missing.critic` as
+`reconcile:<id>`, and only it (then compile and the graph writer) runs again.
+Section and chunk ids may not be `graph`; that name is the writer's entry.
 
 Ledger file names use a slug of the id (lowercase, runs of other characters
 become `-`); the `id` inside the file is verbatim. `args.done` is merged over
@@ -61,7 +72,10 @@ everything after a call that failed. The ledger is the reliable path.
 Write one ledger file per finished result, taken from the run's
 `journal.jsonl` (or the `result` in its `workflows/wf_*.json` record):
 `{"kind":"research","id":"<key>","result":{...}}`, and likewise `section`,
-`plan` and `critic` (id `graph`). Commit them, then relaunch with `ledger` set.
+`plan`, and `critic` (one per section or chunk id, with the reconciler result
+shape). A graph from an old single-critic run can't be split back into
+reconciler entries; pass it as `args.done.critic`, which skips the whole
+Critique phase. Commit the files, then relaunch with `ledger` set.
 
 ## Args too big to pass inline
 

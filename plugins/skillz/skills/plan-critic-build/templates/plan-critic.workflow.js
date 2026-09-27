@@ -5,7 +5,7 @@ export const meta = {
   phases: [
     { title: 'Research', detail: 'one agent per unknown; findings land in committed docs' },
     { title: 'Write', detail: 'one planner per section, writing against the shared contracts' },
-    { title: 'Critique', detail: 'consumes/produces, placeholders, spec coverage, compile check, execution graph' },
+    { title: 'Critique', detail: 'spec coverage, one reconciler per section, combined compile check, execution graph computed from the task data' },
   ],
 }
 
@@ -27,12 +27,13 @@ export const meta = {
 //   research:    [{ key, title, ask, observe: '<how to run the original, e.g. an emulator URL>', minutes: 90 }],  // optional; observe/minutes optional
 //   sections:    [{ id, scope, decisions: ['<binding decision the user approved>'], needs: [researchKey], dependsOn: [sectionId],
 //                   hint: '<path of an interrupted predecessor prototype>' }],   // decisions optional; hint defaults to <scratch>/<id> when it exists
-//   done:        { research: { key: result }, sections: { id: result }, critic: graph },  // optional; merged over the ledger
+//   done:        { research: { key: result }, sections: { id: result }, critic: graph },  // optional; merged over the ledger; critic skips the whole Critique phase
 //   argsScript:  '<abs path of a script that returns these args>',  // optional; for args too big to pass inline
 // }
 // Relaunching with the same args resumes: the ledger marks what finished, leftover prototypes become hints.
 const A = args.argsScript ? { ...(await workflow({ scriptPath: args.argsScript })), ...args } : args
 if (!A.ledger || !A.mergeLock) throw new Error('args.ledger and args.mergeLock are required: finished results must be committed as they land')
+if (A.sections.some(s => s.id.toLowerCase() === 'graph')) throw new Error('section id "graph" is reserved: critic-graph.json is the graph writer\'s ledger entry')
 const research = A.research || []
 const q = p => `"${p}"`
 const slug = id => id.toLowerCase().replace(/[^a-z0-9]+/g, '-')
@@ -165,16 +166,114 @@ const GRAPH_SCHEMA = {
   required: ['fixes_applied', 'spec_changes', 'remaining_gaps', 'tasks', 'waves', 'hot_files'],
 }
 
+const TASKS = {
+  type: 'array',
+  items: {
+    type: 'object',
+    properties: {
+      id: { type: 'string' },
+      title: { type: 'string' },
+      files: { type: 'array', items: { type: 'string' } },
+      depends_on: { type: 'array', items: { type: 'string' } },
+    },
+    required: ['id', 'title', 'files', 'depends_on'],
+  },
+}
+const strings = { type: 'array', items: { type: 'string' } }
+const COVERAGE_SCHEMA = {
+  type: 'object',
+  properties: {
+    assignments: {
+      type: 'array',
+      items: { type: 'object', properties: { section: { type: 'string' }, items: strings }, required: ['section', 'items'] },
+      description: 'spec requirements and Review Focus items no task covers, grouped by the section whose scope owns them',
+    },
+    remaining_gaps: { ...strings, description: 'uncovered items no section owns' },
+  },
+  required: ['assignments', 'remaining_gaps'],
+}
+const RECONCILE_SCHEMA = {
+  type: 'object',
+  properties: {
+    tasks: { ...TASKS, description: "this section's full task list after your edits" },
+    produces: strings,
+    contract_additions: strings,
+    fixes_applied: strings,
+    spec_changes: { ...strings, description: 'proposed, not applied: exact replacement text and the research that proved the spec wrong' },
+    remaining_gaps: strings,
+  },
+  required: ['tasks', 'produces', 'contract_additions', 'fixes_applied', 'spec_changes', 'remaining_gaps'],
+}
+const COMPILE_SCHEMA = {
+  type: 'object',
+  properties: {
+    ran: { ...strings, description: 'each command you ran on the combined copy, with its result' },
+    fixes_applied: strings,
+    remaining_gaps: strings,
+    tasks_changed: {
+      type: 'array',
+      items: { type: 'object', properties: { id: { type: 'string' }, files: strings, depends_on: strings }, required: ['id', 'files', 'depends_on'] },
+    },
+  },
+  required: ['ran', 'fixes_applied', 'remaining_gaps', 'tasks_changed'],
+}
+const WRITER_SCHEMA = { type: 'object', properties: { remaining_gaps: strings }, required: ['remaining_gaps'] }
+
+// Deterministic, so no agent reasons over every plan: waves are topological layers in which no two tasks
+// share a file, so the tasks on a hot file land in successive waves. `first` tasks claim each wave first.
+function computeGraph(tasks, first = () => false) {
+  const gaps = [], byId = new Map()
+  for (const t of tasks) byId.has(t.id) ? gaps.push(`duplicate task id ${t.id} in ${t.file}; kept the first`) : byId.set(t.id, t)
+  const all = [...byId.values()]
+  for (const t of all) for (const d of t.depends_on) if (!byId.has(d)) gaps.push(`${t.id} depends on unknown task ${d}; edge ignored`)
+  const waveOf = {}, waves = []
+  let left = [...all.filter(first), ...all.filter(t => !first(t))]
+  while (left.length) {
+    const wave = [], used = new Set()
+    for (const t of left) {
+      if (t.depends_on.some(d => byId.has(d) && !(d in waveOf)) || t.files.some(f => used.has(f))) continue
+      wave.push(t.id)
+      t.files.forEach(f => used.add(f))
+    }
+    if (!wave.length) break
+    wave.forEach(id => { waveOf[id] = waves.length })
+    waves.push(wave)
+    left = left.filter(t => !(t.id in waveOf))
+  }
+  if (left.length) gaps.push(`not scheduled, dependency cycle: ${left.map(t => t.id).join(', ')}`)
+  const touched = {}
+  for (const t of all) for (const f of new Set(t.files)) (touched[f] = touched[f] || []).push(t.id)
+  const hot_files = Object.entries(touched).filter(([, ids]) => ids.length > 1).map(([file, ids]) =>
+    ({ file, tasks: ids, how: `serialized: waves ${ids.map(id => id in waveOf ? waveOf[id] + 1 : '-').join(', ')}` }))
+  return { tasks: all.map(({ id, file, depends_on }) => ({ id, file, depends_on })), waves, hot_files, gaps }
+}
+function graphMarkdown(g) {
+  const table = (head, rows) => [`| ${head.join(' | ')} |`, `| ${head.map(() => '---').join(' | ')} |`, ...rows.map(r => `| ${r.join(' | ')} |`)]
+  return ['## Execution Graph', '',
+    ...table(['Task', 'Plan file', 'Depends on'], g.tasks.map(t => [t.id, t.file, t.depends_on.join(', ') || '-'])), '',
+    '### Waves', '', ...g.waves.map((w, i) => `${i + 1}. ${w.join(', ')}`), '',
+    '### Hot files', '', ...(g.hot_files.length ? table(['File', 'Tasks', 'How'], g.hot_files.map(h => [h.file, h.tasks.join(', '), h.how])) : ['None.']),
+    ...(g.gaps.length ? ['', '### Not scheduled', '', ...g.gaps.map(x => `- ${x}`)] : []),
+  ].join('\n')
+}
+// The monolithic critic died this way: one silent 4-17 minute turn at 100k+ context, killed at 3 minutes, restarted from zero.
+const STALL = `
+Anti-stall rules (a turn with no output for about 3 minutes is killed, and the retry starts from zero):
+- Edit in small steps: one task or one block per edit, never a whole-file rewrite.
+- Keep each turn short: read big files in chunks of at most 300 lines, only the parts you need; decide, act, move on.
+- Print one progress line (echo) after each task or check you finish.`
+
 phase('Research')
 const L = await loadLedger(`${A.scratch}/.ledger.workflow.js`)
 const fromLedger = kind => Object.fromEntries(L.entries.filter(e => e.kind === kind).map(e => [e.id, e.result]))
 const done = A.done || {}
 const doneResearch = { ...fromLedger('research'), ...done.research }
 const doneSections = { ...fromLedger('section'), ...done.sections }
-const doneCritic = done.critic || fromLedger('critic').graph
+const doneCritic = fromLedger('critic')  // one entry per section reconciler, plus "graph" from the graph writer
+const doneCoverage = fromLedger('coverage').spec, doneCompile = fromLedger('compile').all
 const scratchLeft = new Set(L.scratch)
 const hintFor = s => s.hint || (scratchLeft.has(s.id) ? `${A.scratch}/${s.id}` : '')
-log(`Ledger: ${Object.keys(doneResearch).length} research and ${Object.keys(doneSections).length} sections already done${doneCritic ? ', critic done' : ''}`)
+log(`Ledger: ${Object.keys(doneResearch).length} research, ${Object.keys(doneSections).length} sections and ${Object.keys(doneCritic).length} critic steps already done`)
 
 const researchPromises = {}
 for (const r of research) {
@@ -228,40 +327,108 @@ const missingResearch = research.filter((r, i) => !researchResults[i]).map(r => 
 const missing = A.sections.filter((s, i) => !sectionResults[i]).map(s => s.id)
 // The run record says "completed" whenever the script returns; `status` is what says whether the work did.
 const incomplete = (sections, critic) => {
-  log(`INCOMPLETE: missing research [${missingResearch.join(', ')}], sections [${sections.join(', ')}]${critic ? ', critic' : ''}. Relaunch with the same args; the ledger skips what finished.`)
+  log(`INCOMPLETE: missing research [${missingResearch.join(', ')}], sections [${sections.join(', ')}], critic [${critic.join(', ')}]. Relaunch with the same args; the ledger skips what finished.`)
   return {
     status: 'INCOMPLETE',
     resume: { missing: { research: missingResearch, sections, critic }, ledger: A.ledger, relaunch: 'same scriptPath and args; finished work is read from the ledger, leftover prototypes become hints' },
     research: researchResults, sections: sectionResults,
   }
 }
-if (missing.length) return incomplete(missing, true)
+if (missing.length) return incomplete(missing, ['all'])
 
 phase('Critique')
 const summaries = A.sections.map((s, i) => ({ id: s.id, ...sectionResults[i] }))
-const graph = doneCritic || await agent(`${COMMON}
-TASK: You are the plan critic. The sections were written in parallel by different agents; make them one coherent, executable plan.
-Read the master plan, the spec, every file in ${q(A.sectionsDir)} fully (in chunks if large) and the research docs.
-Section summaries: ${JSON.stringify(summaries)}
-You have authority to fix, not just report. FIX IN PLACE: edit section files; edit the master plan only to record contract additions (never renames) and the section table; edit the spec only where research proved it wrong, and list each such change in spec_changes for the user.
-1. Consumes <-> produces: every consumed name is produced, with the identical signature, by a task ordered earlier. Pick one name and edit every section that disagrees.
-2. Contracts: nothing renames or re-types a Shared Contract item; additions from different sections don't collide; edits to shared switch/dispatch code are ordered so the code compiles after every task.
-3. Spec coverage: every spec requirement maps to a task; add missing tasks to the owning section.
-4. Placeholder scan: TBD, TODO, "similar to", "add error handling", sketches instead of code. Fix them.
-5. Review Focus: each item has a concrete test in an owning task.
-6. Tooling: every run command the tasks use exists (task runner entries, scripts); add missing ones to the task that owns tooling.
-7. Compile check: each planner proved its own section in ${q(A.scratch)}; you prove them together. Assemble every section's code in one scratch copy of the repo (apply each task's edits in graph order), build, lint and test it, and fix the plans where it breaks. Report what you ran and its result.
-8. Execution graph: every task id -> depends-on ids, then waves where tasks in one wave touch disjoint files. List files many tasks edit ("hot files") and serialize those tasks unless the edits are append-only and trivially mergeable; say which. Write it as "## Execution Graph" at the end of the master plan.
-Return the graph: each task with the plan file holding its "### Task <id>" block.
-${record('critic', 'graph', [A.sectionsDir, A.plan, A.spec])}`,
-  { label: 'critic', phase: 'Critique', schema: GRAPH_SCHEMA })
+const sectionFile = s => `${A.sectionsDir}/${s.id}.md`
+const order = A.sections.map(s => s.id).join(', ')
+let graph = done.critic
+if (!graph) {
+  const coveragePromise = (doneCoverage || A.sections.every(s => doneCritic[s.id])) ? Promise.resolve(doneCoverage || { assignments: [], remaining_gaps: [] }) : agent(`${COMMON}
+TASK: Spec coverage check for the plan critic. Edit nothing except the ledger.
+Every planned task (section, id, title): ${JSON.stringify(summaries.map(s => s.tasks.map(t => [s.id, t.id, t.title])).flat())}
+Section scopes: ${JSON.stringify(A.sections.map(s => [s.id, s.scope]))}
+Find every spec requirement no task covers and every Review Focus item in the master plan no task tests, and assign each to the section whose scope owns it. Work from the task titles; open a section file only to settle a doubtful match, and read only that task's block.
+${STALL}
+${record('coverage', 'spec', [])}`, { label: 'coverage', phase: 'Critique', schema: COVERAGE_SCHEMA, effort: 'medium' })
 
-if (graph) {
-  const inWaves = new Set(graph.waves.flat())
-  const orphans = graph.tasks.map(t => t.id).filter(id => !inWaves.has(id))
-  if (orphans.length) log(`Tasks missing from every wave: ${orphans.join(', ')}`)
+  const reconciled = {}
+  for (const s of A.sections) {
+    if (doneCritic[s.id]) { reconciled[s.id] = Promise.resolve(doneCritic[s.id]); continue }
+    reconciled[s.id] = (async () => {
+      const coverage = await coveragePromise
+      if (!coverage) return null
+      const up = await Promise.all((s.dependsOn || []).map(id => reconciled[id]))
+      const mine = summaries.find(x => x.id === s.id)
+      const others = summaries.filter(x => x.id !== s.id)
+      const items = coverage.assignments.filter(a => a.section === s.id).flatMap(a => a.items)
+      return agent(`${COMMON}
+TASK: Reconcile plan section "${s.id}" (${q(sectionFile(s))}) with the rest of the plan. You own this one file: edit nothing else except the ledger. Other reconcilers are editing the other sections at the same time.
+Your section as planned: ${JSON.stringify(mine)}
+Final produces of the sections you build on (match them verbatim): ${JSON.stringify((s.dependsOn || []).map((id, i) => [id, (up[i] || summaries.find(x => x.id === id) || {}).produces]))}
+Produces of every other section, as planned: ${JSON.stringify(others.map(x => [x.id, x.produces]))}
+Consumes of the sections that build on yours: ${JSON.stringify(A.sections.filter(x => (x.dependsOn || []).includes(s.id)).map(x => [x.id, summaries.find(y => y.id === x.id).consumes]))}
+Contract additions from every section: ${JSON.stringify(summaries.map(x => [x.id, x.contract_additions]))}
+${items.length ? `Uncovered spec requirements and Review Focus items the coverage check assigned to you:\n${items.map(x => `- ${x}`).join('\n')}` : ''}
+Fix in place, one task at a time:
+1. Consumes: every name you consume matches a producer's produces verbatim (name and signature), and the producing task is in the consuming task's depends_on. Change your side, never the producer's. A name nobody produces: add the task if it is in your scope, else list it in remaining_gaps with the section that should produce it.
+2. Produces and Shared Contracts: never rename or re-type them. Add a produce when a section that builds on yours consumes something in your scope you don't produce yet.
+3. Contract additions: when one of yours collides with another section's (same name, different shape), the section earlier in this order keeps the name: ${order}. If that isn't you, rename yours and every use in your file.
+4. Coverage: add a task, or a test step in an existing task, for each assigned item.
+5. Placeholders: TBD, TODO, "similar to", "add error handling", sketches instead of code. Replace each with real code.
+6. Tooling: every run command your tasks use exists or is created by an earlier task; otherwise add the step that creates it.
+7. Never edit the spec or the master plan. Return spec changes (exact replacement text plus the research that proved the spec wrong) and your contract additions; the graph writer applies them.
+If your prototype ${q(`${A.scratch}/${s.id}`)} exists, apply your code changes there too and run the narrowest build or test that covers them, in the background with a log.
+Return your section's full task list after the edits (ids, titles, every file each task touches, depends_on) and its produces.
+${STALL}
+${record('critic', s.id, [sectionFile(s)])}`, { label: `reconcile:${s.id}`, phase: 'Critique', schema: RECONCILE_SCHEMA, effort: 'medium' })
+    })()
+  }
+  // dependsOn is read after the coverage await, so forward references resolve.
+  const recs = await Promise.all(A.sections.map(s => reconciled[s.id]))
+  const coverage = await coveragePromise
+  const lost = [...(coverage ? [] : ['coverage']), ...A.sections.filter((s, i) => !recs[i]).map(s => `reconcile:${s.id}`)]
+  if (lost.length) return incomplete([], [...lost, 'compile', 'graph'])
+
+  const tasks = A.sections.flatMap((s, i) => recs[i].tasks.map(t => ({ ...t, file: summaries[i].path })))
+  const compile = doneCompile || await agent(`${COMMON}
+TASK: Combined compile check. Each planner proved its own section in its prototype; you prove all sections together.
+Sections in order, with plan file and prototype (a copy of the repo with that section's code applied, updated by its reconciler; gone after a reboot): ${JSON.stringify(A.sections.map(s => [s.id, sectionFile(s), `${A.scratch}/${s.id}`]))}
+Draft waves (recomputed from your tasks_changed): ${JSON.stringify(computeGraph(tasks).waves)}
+1. Make one fresh scratch copy of the repo at ${q(`${A.scratch}/_combined`)}. Apply each section's changes in the order above: the prototype's diff against the repo's HEAD (git -C <prototype> diff HEAD, or diff -ruN when it is not a git checkout). Where a prototype is gone, apply that section's task code from its plan file, one task at a time. Do not read the plans otherwise.
+2. Build, lint and test the combined copy in the background with the output in a log, polling it.
+3. Where it breaks, fix the owning task's code in its plan file and in the combined copy, one task at a time, then re-run.
+Never add, remove or rename tasks; list what needs that in remaining_gaps. When a fix changes a task's files or depends_on, return that task in tasks_changed.
+${STALL}
+${record('compile', 'all', [A.sectionsDir])}`, { label: 'compile', phase: 'Critique', schema: COMPILE_SCHEMA })
+  if (!compile) return incomplete([], ['compile', 'graph'])
+
+  const changed = Object.fromEntries(compile.tasks_changed.map(t => [t.id, t]))
+  const g = computeGraph(tasks.map(t => changed[t.id] ? { ...t, files: changed[t.id].files, depends_on: changed[t.id].depends_on } : t))
+  const additions = recs.flatMap((r, i) => r.contract_additions.map(x => `${A.sections[i].id}: ${x}`))
+  const specChanges = recs.flatMap((r, i) => r.spec_changes.map(x => `${A.sections[i].id}: ${x}`))
+  const writer = doneCritic.graph || await agent(`${COMMON}
+TASK: Write the Execution Graph into the master plan ${q(A.plan)}. The script computed it from the reconciled task data; do not re-derive it or read the section plans in full.
+1. Replace any existing "## Execution Graph" section of the master plan with exactly this text, placed at the end:
+${graphMarkdown(g)}
+2. Record these contract additions under Shared Contracts (add, never rename): ${JSON.stringify(additions)}
+3. Apply these spec changes to the spec ${q(A.spec)}: ${JSON.stringify(specChanges)}
+4. Sanity check: grep each plan file for its "### Task <id>" headings. List every task in the graph without one, and anything else in the graph that contradicts the plans, in remaining_gaps. Do not edit section files.
+${STALL}
+${record('critic', 'graph', [A.plan, A.spec])}`, { label: 'graph-writer', phase: 'Critique', schema: WRITER_SCHEMA, effort: 'low' })
+  if (!writer) return incomplete([], ['graph'])
+
+  const tagged = (key, sources) => sources.flatMap(([id, r]) => r[key].map(x => `${id}: ${x}`))
+  graph = {
+    fixes_applied: [...tagged('fixes_applied', A.sections.map((s, i) => [s.id, recs[i]])), ...tagged('fixes_applied', [['compile', compile]]), ...compile.ran.map(x => `compile ran: ${x}`)],
+    spec_changes: specChanges,
+    remaining_gaps: [...tagged('remaining_gaps', [['coverage', coverage], ...A.sections.map((s, i) => [s.id, recs[i]]), ['compile', compile], ['graph', writer]]), ...g.gaps],
+    tasks: g.tasks, waves: g.waves, hot_files: g.hot_files,
+  }
 }
-if (!graph || missingResearch.length) return { ...incomplete([], !graph), graph }
+
+const inWaves = new Set(graph.waves.flat())
+const orphans = graph.tasks.map(t => t.id).filter(id => !inWaves.has(id))
+if (orphans.length) log(`Tasks missing from every wave: ${orphans.join(', ')}`)
+if (missingResearch.length) return { ...incomplete([], []), graph }
 
 return {
   status: 'complete',

@@ -6,7 +6,8 @@ description: Plan and build a large software project with parallel agents — sp
 # Plan → critic → wave build
 
 Build software too big for one context: many planners write against shared
-contracts, one critic makes their output a single executable plan, and a
+contracts, a split critic stage (one small reconciler per section) makes their
+output a single executable plan, and a
 workflow executes it wave by wave with a fresh implementer and a fresh
 reviewer per task. Nothing here assumes a language, platform or toolchain;
 every command, path and lock comes in through the templates' `args`.
@@ -137,14 +138,30 @@ key.
   platform's interface files or type stubs, a REPL call, a query against a
   scratch database. The plan carries code that ran, so implementers adapt
   instead of debugging.
-- **The critic fixes, not just reports.** It edits section files in place:
-  consumes ↔ produces, contract collisions, spec coverage, placeholders,
-  Review Focus tests, tooling. It edits the master plan only to record
-  contract additions, never renames. It changes the spec only where research
-  proved it wrong, and lists each change in `spec_changes` for the user. It
-  compile-checks all sections together in one scratch copy and writes the
-  **Execution Graph**: dependencies, waves of disjoint-file tasks, and the
-  hot-files table.
+- **The critic fixes, not just reports, and is never one agent.** One
+  critic reading every plan stalled to death on a large run (lesson 18), so
+  the Critique phase is split into small agents, each committing its own
+  ledger entry:
+  - a **coverage** check maps uncovered spec requirements and Review Focus
+    items to their owning section, from task titles alone;
+  - one **reconciler per section**, chained by `dependsOn`, edits only its
+    own section file: consumes ↔ produces against its upstream's final
+    produces, contract collisions (the earlier section keeps the name),
+    its assigned coverage items, placeholders, tooling. It proposes spec
+    changes and contract additions instead of editing shared docs;
+  - one **compile check** applies every section's prototype diff to one
+    scratch copy, builds it in the background, and fixes the owning task;
+  - the **Execution Graph** is plain JS in the template: topological waves
+    where no two tasks share a file, the hot-files table, and cycles or
+    unknown dependencies as `remaining_gaps`. A small **graph writer**
+    pastes it into the master plan, records the contract additions, applies
+    the `spec_changes` and greps that every task has its heading.
+
+  The result keeps the one-critic shape (`fixes_applied`, `spec_changes`,
+  `remaining_gaps` tagged by source, `tasks`, `waves`, `hot_files`), so
+  wave-build and all-in-one consume it unchanged. Every critic-stage prompt
+  carries anti-stall rules: one task per edit, never a whole-file rewrite,
+  short turns, a progress line per finished step.
 
 Check the result's `status` first. `INCOMPLETE` means an agent died (usage
 limit, crash). `resume.missing` names each one, and relaunching with the same
@@ -204,9 +221,10 @@ files), and fixes only small things, listing bigger ones as `gaps`.
 **All in one.** When the codebase works and the user approved a list of
 chunks with their decisions (a v2 list), skip the gate between critic and
 build: [templates/all-in-one.workflow.js](templates/all-in-one.workflow.js)
-plans chunks (dependent planners chained by `needs`), runs the critic, then
-calls wave-build as a sub-workflow. It resumes from the ledger like the others
-and takes `priority` for the chunk whose tasks go first.
+plans chunks (dependent planners chained by `needs`), runs the same split
+critic stage (a reconciler per chunk, a compile check, the computed graph,
+`priority` tasks claiming each wave first), then calls wave-build as a
+sub-workflow. It resumes from the ledger like the others.
 
 ### 4. Finish
 
@@ -231,6 +249,8 @@ and `superpowers-finishing-a-development-branch`.
       into worktrees, `assets` set.
 - [ ] `ledger` and `mergeLock` set; a sample doc with the run's trailer
       committed cleanly through the repo's hooks.
+- [ ] Machine kept awake for the whole run (lesson 19), e.g. on macOS
+      `caffeinate -dimsu -w <claude pid> &`.
 - [ ] Plan run launched from the template; the user was told milestones are
       not pushed and where `PROGRESS.md` is (lesson 7).
 - [ ] Every run's result `status` read. `INCOMPLETE` was relaunched, never
@@ -279,8 +299,9 @@ Numbers in brackets come from the worked example below.
    `git log -- <ledger>`), not the journal.
 8. **Name the hot files.** Files many tasks edit (dispatch switches, route
    tables, project or build files, task-runner config) go in the Execution
-   Graph's hot-files table, and their tasks are serialized unless the edits
-   are append-only.
+   Graph's hot-files table. The template's graph always serializes their
+   tasks into successive waves, so every task must name every file it
+   touches, or two tasks on one file land in the same wave.
 9. **Rescoping is cheap early.** To defer a chunk, stop the run, drop the
    chunk, relaunch, and record it as deferred in the TODO.
 10. **A session restart loses every agent, not its scratch.** In-flight
@@ -333,6 +354,24 @@ Numbers in brackets come from the worked example below.
     were committed, hooks rejected their `/Users/<name>/tmp` paths and the
     trailer email. Agents now commit their own doc plus ledger entry as they
     finish. Run one sample commit through the hooks before launch.
+
+18. **One critic over every plan stalls to death.** Seven section plans
+    totalling 768 KB plus the spec and master plan went to a single critic
+    agent. Across two runs it was attempted 10 times and never finished; the
+    last run lost 6 of 6 attempts to "no progress for 180000ms" and burned
+    about 0.9M tokens. Each attempt made a fast tool call, then spent 4-17
+    silent minutes on its next turn at 100-184k context (long thinking or one
+    huge edit), was killed at 3 minutes, and restarted by re-reading
+    everything. The critic stage is now a coverage check, one reconciler per
+    section, a compile check and a script-computed graph: no agent holds more
+    than one section, and a crash loses only the agent in flight.
+
+19. **A sleeping machine kills the run.** One critic attempt died with "Your
+    computer went to sleep mid-response". Before a long workflow, keep the
+    machine awake for as long as the Claude process lives: on macOS
+    `caffeinate -dimsu -w <claude pid> &` (`-s` holds only on AC power, so
+    stay plugged in); on Linux `systemd-inhibit` around the session or the
+    desktop's equivalent.
 
 Recovery recipes (relaunching, rescoping, restarts, hotfixes, leftovers,
 status): [references/recovery.md](references/recovery.md).
