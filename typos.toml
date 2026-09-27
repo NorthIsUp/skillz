@@ -8,3 +8,7 @@ extend-ignore-re = [
 
 [files]
 extend-exclude = ["memory/", "*.lock"]
+
+[default.extend-words]
+# iTMSTransporter installs into an itms/ directory
+itms = "itms"

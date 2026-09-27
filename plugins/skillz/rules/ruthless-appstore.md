@@ -1,0 +1,1 @@
+../skills/ruthless-appstore/SKILL.md
