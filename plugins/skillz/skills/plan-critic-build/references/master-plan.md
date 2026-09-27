@@ -104,8 +104,8 @@ CREATE TABLE orders (
 );
 ```
 
-Sections may add members, never rename or re-type. The critic records every
-addition here.
+Sections may add members, never rename or re-type. The critic's graph writer
+records every addition here.
 
 ## Review Focus
 
@@ -123,14 +123,15 @@ task id:
 
 ## Execution Graph
 
-Written by the critic, at the end of the master plan.
+Computed by the template from the reconciled task data and written, at the
+end of the master plan, by a small graph-writer agent.
 
-- **Dependencies**: a table, task → waits for.
-- **Waves**: a table of wave number → tasks that run in parallel. Tasks in
-  one wave touch disjoint files, so their branches merge without conflicts.
-- **Files many tasks edit**: file, the tasks that edit it in order, and how
-  (serial vs append-only). Serial chains here are usually the critical path.
-- The critical path in one line.
+- **Dependencies**: a table, task → plan file → waits for.
+- **Waves**: wave number → tasks that run in parallel. Tasks in one wave
+  touch disjoint files, so their branches merge without conflicts.
+- **Hot files**: files more than one task edits, those tasks, and the waves
+  they are serialized into. Serial chains here are usually the critical path.
+- **Not scheduled**: dependency cycles and unknown dependencies, when any.
 
 The build workflow takes the waves as `args`. It never re-reads this section
 mid-run, so tasks added after launch have to be run separately.
