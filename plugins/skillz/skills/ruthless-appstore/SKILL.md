@@ -92,4 +92,4 @@ New app: the template's `SETUP.md`. Adding TestFlight to an app that predates th
 - `references/asc-api.md` — endpoints and their quirks, TestFlight groups, attaching builds, App Store metadata.
 - `references/ci.md` — runner, cache measurements (and the DerivedData disagreement), sharded tests, Linux Transporter.
 - `references/credentials.md` — file layout, the 1Password item, the auto-mode hand-off, setup order for an app that predates the template.
-- `references/macos.md` — Mac App Store without Xcode, Developer ID and notarization.
+- `references/macos.md` — Mac App Store without Xcode, Developer ID and notarization, Sparkle auto-update.

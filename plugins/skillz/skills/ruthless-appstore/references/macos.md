@@ -35,3 +35,43 @@ The Developer ID Application cert is Account Holder only (signing.md, "Certifica
    ```
 
 6. Publish under a fixed asset name so `releases/latest/download/<App>.dmg` is a stable link.
+
+## Sparkle auto-update
+
+From tsmux (Developer ID, not sandboxed, no Xcode project). A sandboxed host
+needs more than this: Sparkle's XPC services exist for that case and nothing
+below uses them.
+
+- **The feed is a release asset with a fixed name.** `SUFeedURL` is
+  `https://github.com/<owner>/<repo>/releases/latest/download/appcast.xml`, so the
+  URL compiled into every build stays valid while the file behind it changes each
+  release. Rename that asset and every installed copy silently stops seeing
+  updates. Same trick as the stable `<App>.dmg` download link above.
+- **SwiftPM links the xcframework but populates no bundle.** Assembling an app by
+  hand means copying `Sparkle.framework` into `Contents/Frameworks` yourself, plus
+  an rpath: `.unsafeFlags(["-Xlinker", "-rpath", "-Xlinker",
+"@executable_path/../Frameworks"])`. Each flag needs its own `-Xlinker` — passed
+  bare they reach swiftc, which fails `unknown argument: '-rpath'`.
+- **Copy it with `cp -R`**, so the framework's version symlinks survive; codesign
+  needs them.
+- **Sign inside out:** `XPCServices/*.xpc`, `Updater.app`, `Autoupdate`, then
+  `Sparkle.framework`, then the app. A signature over a bundle does not cover a
+  nested executable signed after it, and notarization rejects the result.
+  Verified Accepted with the framework embedded.
+- **The tools ship inside the SPM artifact**, no separate download:
+  `.build/artifacts/sparkle/Sparkle/bin/{generate_keys,generate_appcast,sign_update}`.
+- **`generate_keys` puts the private key in the login keychain** and prints only
+  the public half, which goes in Info.plist as `SUPublicEDKey` and is not secret.
+  `generate_keys -x <file>` exports the private half (44 bytes) for CI. It is the
+  one credential that cannot be quietly re-minted: a new key means shipping a new
+  public half in a build users install by hand.
+- **`generate_appcast --ed-key-file -`** reads that key from stdin, so CI needs no
+  keychain. Give it `--download-url-prefix .../releases/download/v<version>/` and a
+  directory holding the zip. A single-item appcast is enough — Sparkle only has to
+  learn that something newer than the running build exists.
+- **An accessory (`LSUIElement`) app must `NSApp.activate()` before
+  `checkForUpdates`**, or the update panel opens behind whatever is frontmost.
+- Start the updater at launch — `SPUStandardUpdaterController(startingUpdater:
+true, …)` — not lazily: it has to be running to do its own scheduled background
+  checks, not only to answer the menu item. Where the menu sets
+  `autoenablesItems = false`, mirror `updater.canCheckForUpdates` onto the item.
