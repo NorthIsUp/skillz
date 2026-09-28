@@ -8,7 +8,7 @@ description: |
   workflow, ASC API keys, certificates, 1Password signing items, or
   GitHub signing secrets. Also fires for "ship to TestFlight", "set up
   signing", "upload a build", "notarize", "why is the ASC icon grey",
-  and "make a profile".
+  "make a profile", and "new iOS/Mac app" (start from template-apple).
 paths:
   - "**/project.yml"
   - "**/*.pbxproj"
@@ -26,6 +26,27 @@ to do and why, so it covers cases it doesn't literally name. Every fact
 here was verified on a shipped app (PixKidz, Flying Colors, Clip, Clip.md);
 where sessions measured different things, the reference says which.
 
+Swift code itself (concurrency, SwiftUI, tests, XcodeGen): the `ruthless-swift` skill.
+
+## New apps start from `template-apple`
+
+```sh
+gh repo create <owner>/<name> --private --template NorthIsUp/template-apple --clone
+```
+
+Then work through the template's `SETUP.md` checklist, top to bottom: it goes from a fresh copy to the first TestFlight build. What the template gives you:
+
+- **One config spot.** `APP_NAME`, `BUNDLE_ID` and `TEAM_ID` live in `mise.toml` `[env]`; `project.yml` reads them as `${VAR}`, and the scripts and CI read the same env. `mise run gen` runs XcodeGen; the `.xcodeproj` is never committed.
+- **One multiplatform target** (`supportedDestinations: [iOS, macOS]`) with sandbox and hardened runtime on, and Release signing already manual (Rule 5).
+- **`Core/`**, a local SwiftPM package for the logic, tested with `swift test` and no simulator.
+- **One CI pipeline** (`.github/workflows/ci.yml`). A `HAS_SIGNING` env gate skips signing when the secrets are absent (a fresh copy, a fork). PRs lint, run sharded Core tests, build, and export with `testflight.sh --no-upload` (Rule 4). `main` hands the `.ipa` to a Linux job that uploads with Transporter (Rule 10); if `MARKETING_VERSION` changed (`mise run bump-{patch,minor,major}`), it tags `v<version>` and makes a GitHub release.
+
+Gotchas the template hit:
+
+- GitHub doesn't copy LFS objects into a repo made from a template. The AppIcon PNGs are excluded from LFS in `.gitattributes`; keep anything a fresh copy needs to build out of LFS.
+- Parallel `xcodebuild` runs sharing DerivedData fail with "build database is locked" (`build.db`). Build sequentially, or give each run its own `-derivedDataPath`.
+- Node-24 action majors: `actions/cache@v5`, `actions/upload-artifact@v6`, `actions/download-artifact@v7`.
+
 ## The bar
 
 - **Rule 1 — Personal apps ship to internal TestFlight only.** Export with `testFlightInternalTestingOnly` true and use an internal group (`isInternalGroup`, `hasAccessToAllBuilds`). Internal builds skip Beta App Review; internal testers must be ASC users. External testing (review, localizations, public link) happens only when Adam asks for it. See `references/asc-api.md`.
@@ -37,7 +58,7 @@ where sessions measured different things, the reference says which.
 - **Rule 7 — Never cache keychains, profiles or keys.** A cache is readable by any later workflow run on any branch, including PRs. Secrets are decoded from repo secrets into place each run and die with the runner.
 - **Rule 8 — Build numbers are UTC timestamps.** `CURRENT_PROJECT_VERSION=$(date -u +%Y%m%d%H%M)` never collides with an earlier upload from any machine or branch, and needs no counter. App extensions set `CFBundleVersion` to `$(CURRENT_PROJECT_VERSION)` or the upload draws an ITMS-90473 email.
 - **Rule 9 — `ITSAppUsesNonExemptEncryption` is `NO`.** Otherwise every build waits in ASC on the export-compliance question before testers can install it.
-- **Rule 10 — macOS CI minutes cost 10×: keep that job minimal and upload from Linux.** The macOS job tests, archives and exports; a Linux job uploads with Transporter, since the upload is mostly waiting on Apple. Skip steps whose inputs didn't change, and cache everything that isn't a secret. Template: `scripts/testflight.yml`. Measurements in `references/ci.md`.
+- **Rule 10 — macOS CI minutes cost 10×: keep that job minimal and upload from Linux.** The macOS job tests, archives and exports; a Linux job uploads with Transporter, since the upload is mostly waiting on Apple. Skip steps whose inputs didn't change, and cache everything that isn't a secret. Workflow: `template-apple`'s `.github/workflows/ci.yml`. Measurements in `references/ci.md`.
 - **Rule 11 — Credentials have one layout and never enter a repo, a log or a chat.** Keys are `~/.appstoreconnect/private_keys/AuthKey_<KEYID>.p8`; per-app signing material is `~/.appstoreconnect/<app>/`, mode 600. Each team has one bundled 1Password item. Key ids, issuer ids and team ids aren't secret; save them to memory so later sessions skip 1Password. See `references/credentials.md`.
 - **Rule 12 — Batch all 1Password reads into one shell invocation, by id.** Every `op` call from an agent is a separate prompt for Adam. Reference items and files by id: `op://` reads a dot in a label as a section separator, and an em dash in a name breaks the lookup.
 - **Rule 13 — Secret-store writes are a committed script the human runs.** Auto mode blocks `gh secret set`, 1Password reads and streaming certs to other hosts. Don't route around it: commit the script (`scripts/set-ci-secrets.sh`, `scripts/bundle-1password.sh`) and hand Adam the one `!` command to run.
@@ -47,7 +68,7 @@ where sessions measured different things, the reference says which.
 
 ## Scripts
 
-All take app-specific values as flags or env, never hardcoded. Python runs with `uv run`, which reads the inline deps.
+`template-apple`'s `scripts/` is the canonical copy and these are byte-identical to it: change the template, then copy the files here. All take app-specific values as flags or env, never hardcoded. Python runs with `uv run`, which reads the inline deps.
 
 | Script                 | Does                                                                         | Account writes   |
 | ---------------------- | ---------------------------------------------------------------------------- | ---------------- |
@@ -60,15 +81,15 @@ All take app-specific values as flags or env, never hardcoded. Python runs with 
 | `bundle-1password.sh`  | Creates the team's one 1Password item (human-run)                            | 1Password item   |
 | `set-ci-secrets.sh`    | One 1Password session into `gh secret set` / `gh variable set` (human-run)   | GitHub secrets   |
 | `testflight.sh`        | Archive, manual-sign export, upload; `--no-upload` exports only              | TestFlight build |
-| `testflight.yml`       | Workflow template: macOS export, Linux Transporter upload, caches            | TestFlight build |
+| `make-icon.py`         | Opaque placeholder AppIcon (`mise run icon` in the template)                 | none             |
 | `swift-test-shards.sh` | Swift Testing split across processes (MainActor-default suites run serially) | none             |
 
-First-time setup for a new app, in order: `references/credentials.md#new-app`.
+New app: the template's `SETUP.md`. Adding TestFlight to an app that predates the template: `references/credentials.md#existing-app`.
 
 ## Reference files (load on demand)
 
 - `references/signing.md` — certificates, what an Admin key can't do, p12 and keychain details, XcodeGen signing config, forks.
 - `references/asc-api.md` — endpoints and their quirks, TestFlight groups, attaching builds, App Store metadata.
 - `references/ci.md` — runner, cache measurements (and the DerivedData disagreement), sharded tests, Linux Transporter.
-- `references/credentials.md` — file layout, the 1Password item, the auto-mode hand-off, new-app setup order.
+- `references/credentials.md` — file layout, the 1Password item, the auto-mode hand-off, setup order for an app that predates the template.
 - `references/macos.md` — Mac App Store without Xcode, Developer ID and notarization.

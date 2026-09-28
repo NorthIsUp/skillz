@@ -1,3 +1,4 @@
+#!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.12"
 # dependencies = ["pyjwt[crypto]>=2.8", "requests>=2.32", "pydantic>=2.7"]
@@ -15,9 +16,8 @@ import sys
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel
-
 from asc import AscError, Client, ProfileOne
+from pydantic import BaseModel
 
 
 class Ref(BaseModel):
@@ -51,8 +51,8 @@ class ProfileCreate(BaseModel):
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     Client.add_args(parser)
-    parser.add_argument("identifier", help="bundle id, e.g. com.northisup.pixkidz")
-    parser.add_argument("--name", required=True, help='e.g. "PixKidz App Store"')
+    parser.add_argument("identifier", help="bundle id, e.g. com.example.app")
+    parser.add_argument("--name", required=True, help='e.g. "MyApp App Store"')
     parser.add_argument(
         "--cert-id",
         action="append",

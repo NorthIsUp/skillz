@@ -4,7 +4,7 @@
 # usage: swift-test-shards.sh <package-path> <TestModule>   env: SHARDS (default 2 x cores)
 set -eu
 cd "${1:?usage: swift-test-shards.sh <package-path> <TestModule>}"
-mod=${2:?test module, e.g. KidPixEngineTests}
+mod=${2:?test module, e.g. CoreTests}
 
 swift build --build-tests
 swift test list --skip-build > .build/tests.txt

@@ -1,3 +1,4 @@
+#!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.12"
 # dependencies = ["pyjwt[crypto]>=2.8", "requests>=2.32", "pydantic>=2.7"]
@@ -13,9 +14,8 @@ import argparse
 import sys
 from typing import Literal
 
-from pydantic import BaseModel
-
 from asc import AscError, BundleIdOne, Client
+from pydantic import BaseModel
 
 type Platform = Literal["IOS", "MAC_OS", "UNIVERSAL"]
 
@@ -36,7 +36,7 @@ class BundleIdCreate(BaseModel):
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     Client.add_args(parser)
-    parser.add_argument("identifier", help="e.g. com.northisup.pixkidz")
+    parser.add_argument("identifier", help="e.g. com.example.app")
     parser.add_argument(
         "--name",
         required=True,

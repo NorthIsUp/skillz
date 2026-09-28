@@ -1,6 +1,6 @@
 # CI
 
-Template: `scripts/testflight.yml`. The macOS job tests, archives and exports; the Linux job uploads.
+Workflow: `.github/workflows/ci.yml` in `NorthIsUp/template-apple`. The macOS job tests, archives and exports; the Linux job uploads.
 
 ## Runner
 
