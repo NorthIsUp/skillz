@@ -20,6 +20,11 @@ at most 20 minutes). `scripts/asc.py` builds it; `uv run asc.py` prints one for 
 2. Internal group, once per app: `POST /v1/betaGroups` with `isInternalGroup: true`,
    `hasAccessToAllBuilds: true`. No Beta App Review. Testers must already be ASC users.
 3. Add testers only now: before any valid build exists, it's 409 `STATE_ERROR`.
+   Tester records don't carry across apps: linking another app's tester ids into this app's group
+   (`POST /v1/betaGroups/{id}/relationships/betaTesters`) stays 409 "Tester(s) cannot be assigned" even
+   with a valid build. Invite by email instead: `POST /v1/betaTesters` with `email` (plus names) and
+   `relationships.betaGroups`. Testers who joined through a public link have no email; send them the
+   new app's link. Re-inviting someone already in the group is 409 too, so skip existing emails.
 4. Attach the build to the App Store version so the ASC grid shows the icon:
    `PATCH /v1/appStoreVersions/{id}/relationships/build` with `{"data": {"type": "builds", "id": …}}`.
    Returns 204 with an empty body; don't parse it. It doesn't submit anything.
@@ -47,3 +52,7 @@ forever because no build for those platforms will ever exist; ignore them.
 | Screenshots  | Reserve (`POST` with file size), `PUT` each upload chunk, then `PATCH` `uploaded: true` with the MD5 |
 | Mac display  | `APP_DESKTOP` screenshots are 2880×1800                                                              |
 | Privacy      | App Privacy labels are web-only                                                                      |
+
+Beta review allows one build per version train: submitting a newer build while one is in review is
+422 "Another build in the same train is already in beta review". It's harmless; the approved build
+opens the external group, and later builds reach it through the group.

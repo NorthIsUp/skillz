@@ -11,14 +11,18 @@ need it.
 
 ## What each saving measured
 
-| Change                                                                         | Before → after          | App     |
-| ------------------------------------------------------------------------------ | ----------------------- | ------- |
-| Cache `.git/lfs`, keyed on the sorted LFS object ids                           | 137 s → 4 s LFS pull    | PixKidz |
-| Shard Swift Testing across processes (`swift-test-shards.sh`, 2 × cores)       | 306 s → 136 s tests     | PixKidz |
-| `COMPILATION_CACHE_ENABLE_CACHING=YES` + cache `CompilationCache.noindex`      | 1m55 → 1m22 archive     | Clip    |
-| Upload from Linux instead of macOS (saves the upload plus ~40 s of processing) | macOS minutes, at 10×   | PixKidz |
-| Skip package tests when the package's paths didn't change since `before`       | whole step              | PixKidz |
-| Pinned XcodeGen release zip, cached, instead of `brew install`                 | Homebrew update per run | PixKidz |
+| Change                                                                             | Before → after             | App           |
+| ---------------------------------------------------------------------------------- | -------------------------- | ------------- |
+| Cache `.git/lfs`, keyed on the sorted LFS object ids                               | 137 s → 4 s LFS pull       | PixKidz       |
+| Shard Swift Testing across processes (`swift-test-shards.sh`, 2 × cores)           | 306 s → 136 s tests        | PixKidz       |
+| `COMPILATION_CACHE_ENABLE_CACHING=YES` + cache `CompilationCache.noindex`          | 1m55 → 1m22 archive        | Clip          |
+| Upload from Linux instead of macOS (saves the upload plus ~40 s of processing)     | macOS minutes, at 10×      | PixKidz       |
+| Skip package tests when the package's paths didn't change since `before`           | whole step                 | PixKidz       |
+| Pinned XcodeGen release zip, cached, instead of `brew install`                     | Homebrew update per run    | PixKidz       |
+| Compilation cache restored from the last `main` run, Release archive               | cold ~90 s → 28 s          | Flying Colors |
+| UI tests (XCUITest) out of CI into pre-push                                        | 50 min → 3 min per run     | Flying Colors |
+| `uploadSymbols` false                                                              | 130 s → 128 s: no gain     | Flying Colors |
+| Ship only on `paths:` that change the app (sources, assets, project, ship scripts) | whole run for other pushes | Flying Colors |
 
 SwiftPM's `.build` cache only hits because a step first sets every source file's mtime to its last
 commit time: checkout stamps everything "now", which invalidates the whole cached build.
@@ -36,6 +40,12 @@ cache inside it is the part that survives. To use it, set the build setting, pas
 leaves it out because PixKidz never measured it; add it when an archive is slow.
 
 ## Cache scope
+
+- `actions/cache` saves in its post-job step, which is skipped when any step fails. A repo whose runs
+  keep failing never warms: Flying Colors ran cold four times. Use `actions/cache/restore` plus
+  `actions/cache/save` with `if: always()` for caches that must survive a red run.
+- Key the compilation cache on the commit (`compilation-xcode27-${{ github.sha }}`) with a prefix
+  restore key, so every run restores the newest and saves its own.
 
 - A PR's caches aren't visible to `main`, but `main`'s caches are restored in PRs. Warm caches on `main`.
 - Never cache keychains, profiles or keys (Rule 7).
@@ -58,6 +68,16 @@ Pinned at 4.0.0.4 from Apple's bootstrapper; the version and installer MD5 are i
   paths at eXtreme uploaded. eXtreme is mostly noise, so print its tail on success and a filtered
   300 lines plus the full log artifact on failure.
 - Auth is the same `.p8` in `~/.appstoreconnect/private_keys/` with `-apiKey` / `-apiIssuer`.
+- It isn't always enough. Flying Colors, with absolute paths at eXtreme, got the same failure twice
+  (run 36364233359; Transporter self-updated to 4.1.0.19): plist sent, `.ipa` "could not upload file"
+  with 0 bytes and no reason. The fallback that worked first time is uploading from the macOS job with
+  `xcodebuild -exportArchive` and `destination` `upload` plus `-authenticationKey*`, then waiting on
+  processing in a Linux job. That upload is 130 s, almost all of it Apple's server side.
+
+## Shell on the macOS runner
+
+The runner's `/bin/bash` is 3.2: under `set -u` an empty array is "unbound", so `"${args[@]}"` for
+optional flags fails. Write `${args[@]+"${args[@]}"}`.
 
 ## Tests that measure time
 
