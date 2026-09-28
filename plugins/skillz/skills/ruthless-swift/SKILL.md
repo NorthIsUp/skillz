@@ -18,8 +18,10 @@ paths:
 
 The standing bar for Swift in this workspace. Declarative: each rule
 states _what_ good code looks like and _why_, so the principle applies
-to cases the rule doesn't literally cover. Every rule was verified on
-PixKidz. Signing, TestFlight and CI uploads live in `ruthless-appstore`.
+to cases the rule doesn't literally cover. The rules come from shipping
+PixKidz, except Rule 11, the `@unchecked Sendable` comment and "no SwiftLint",
+which are standing convention. Signing, TestFlight and CI uploads live in
+`ruthless-appstore`.
 
 New apps start from `NorthIsUp/template-apple`:
 `gh repo create <owner>/<name> --private --template NorthIsUp/template-apple --clone`,
