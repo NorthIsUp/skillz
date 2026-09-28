@@ -129,6 +129,12 @@ Reach for these first; don't introduce alternatives without a reason:
 
 Before adding a new dependency, check whether `anyio` or `asyncstdlib` already covers it.
 
+## New projects
+
+Start from `NorthIsUp/template-python`: `gh repo create <owner>/<name> --template NorthIsUp/template-python --clone` (the `new-project` skill has the rename steps). It ships mise (Python 3.13, uv, ruff, hk, pkl), a uv-built package under `src/`, ruff with a broad rule set including `ANN`, pyright, pytest, and hk hooks (ruff + pyright on commit, pytest on push). One `ci.yml` tests every push; on `main`, a version bump (`mise run bump-{patch,minor,major}`) tags `v<version>`, publishes to PyPI by trusted publishing, and cuts a GitHub release.
+
+Two template defaults sit below this bar; fix them in a new project: pyright's `typeCheckingMode = "basic"` becomes `"strict"`, and pytest's `asyncio_mode = "auto"` gives way to the anyio plugin (Rule 9).
+
 ## Tooling
 
 - **Ruff is the formatter and the linter.** `ruff format` for formatting, `ruff check` for linting — one tool, one config. Not `black`, not `flake8`, not `isort`, not `pylint`. No formatting or style opinions in this skill or in code review; ruff decides. Configure rules in `[tool.ruff.lint]` in `pyproject.toml`; don't ship `# noqa` lines without an inline reason.

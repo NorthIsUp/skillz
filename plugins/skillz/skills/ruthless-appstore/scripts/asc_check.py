@@ -1,3 +1,4 @@
+#!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.12"
 # dependencies = ["pyjwt[crypto]>=2.8", "requests>=2.32", "pydantic>=2.7"]

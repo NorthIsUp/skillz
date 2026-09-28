@@ -51,9 +51,10 @@ Inside that one invocation the script reads the item once, pulls the three files
 `mktemp -d` that is deleted on exit, and sets `ASC_KEY_P8`, `P12_BASE64`, `P12_PASSWORD`,
 `PROFILE_BASE64` plus the `ASC_KEY_ID`, `ASC_ISSUER_ID`, `TEAM_ID` variables.
 
-## New app
+## Existing app
 
-Env for all of these: `ASC_KEY_ID`, `ASC_ISSUER_ID` (from memory, not 1Password).
+A new app follows `template-apple`'s `SETUP.md` instead. For an app that predates the template,
+env for all of these: `ASC_KEY_ID`, `ASC_ISSUER_ID` (from memory, not 1Password).
 
 1. `uv run asc_check.py --team <TEAMID>`: right key.
 2. `uv run register_bundle.py <bundle-id> --name <Name>`.
@@ -63,6 +64,7 @@ Env for all of these: `ASC_KEY_ID`, `ASC_ISSUER_ID` (from memory, not 1Password)
    exists (there's a per-team limit; reuse its p12 from the 1Password item).
 5. `uv run make_profile.py <bundle-id> --name "<App> App Store" --cert-id $(cat ~/.appstoreconnect/<app>/dist.id) --out ~/.appstoreconnect/<app>/<App>.mobileprovision`.
 6. Human: `! bundle-1password.sh …` (new team) and `! set-ci-secrets.sh …` (every repo).
-7. Copy `testflight.yml` into `.github/workflows/`, and `testflight.sh`, `ci-keychain.sh`,
-   `swift-test-shards.sh` into `scripts/`; open a PR and watch it
+7. From `NorthIsUp/template-apple`, copy `.github/workflows/ci.yml` (it calls the template's
+   `mise.toml` tasks) and `testflight.sh`, `ci-keychain.sh`, `swift-test-shards.sh` into
+   `scripts/`; open a PR and watch it
    export without uploading (Rule 4). Merge; `main` uploads.

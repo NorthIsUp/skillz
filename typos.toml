@@ -12,3 +12,7 @@ extend-exclude = ["memory/", "*.lock"]
 [default.extend-words]
 # iTMSTransporter installs into an itms/ directory
 itms = "itms"
+
+[default.extend-identifiers]
+# Plural of PNG; typos splits it into "PN" + "Gs"
+PNGs = "PNGs"
