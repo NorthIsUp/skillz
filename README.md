@@ -12,7 +12,6 @@ plugins/skillz/                   # the plugin (installable via /plugin install)
   skills/                         # SKILL.md per skill
   agents/
   commands/
-  vendor/                         # third-party skill sources: LICENSE + PROVENANCE per upstream
 memory/                           # synced personal memory (not part of plugin)
 scripts/                          # validate + auto-push helpers
 mise.toml                         # tool versions + tasks

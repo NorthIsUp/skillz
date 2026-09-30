@@ -16,7 +16,7 @@ export const meta = {
 //   plan:        '<abs master plan path>',                // holds Shared Contracts, Global Constraints, Review Focus
 //   sectionsDir: '<abs dir for section plans>',
 //   researchDir: '<abs dir for research docs>',           // committed, never /tmp
-//   writingPlans:'<abs path to writing-plans SKILL.md>',
+//   writingPlans:'<abs path: ~/.claude/plugins/cache/claude-plugins-official/superpowers/<ver>/skills/writing-plans/SKILL.md>',
 //   trailer:     'Co-Authored-By: <model> <noreply@anthropic.com>',
 //   context:     '<project brief: goal, build/test/lint commands, binding rules the planners need>',
 //   briefing:    { toolkit: ['<path>  <fn(args) -> result>'], toolkitRecipe: '<how to rebuild the toolkit>',
