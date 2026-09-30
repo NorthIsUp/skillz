@@ -69,6 +69,24 @@ below uses them.
   keychain. Give it `--download-url-prefix .../releases/download/v<version>/` and a
   directory holding the zip. A single-item appcast is enough — Sparkle only has to
   learn that something newer than the running build exists.
+- **Set `SUEnableAutomaticChecks`** in Info.plist. Without it Sparkle asks on
+  first launch whether to check automatically and does nothing until answered;
+  with it users are opted in silently. The scheduled interval already defaults
+  to a day, so do not also set `SUScheduledCheckInterval` to 86400.
+- **Whether an update is EdDSA-signed varies, so do not assert on it.**
+  `generate_appcast` can omit `sparkle:edSignature` when the archive is
+  Developer ID signed and notarized, because Sparkle will verify by Apple code
+  signing instead — but a CI build of the same shape still carried one.
+  Validate the property that matters, "something can verify this update":
+  a signature is present, _or_ `spctl --assess --type execute` accepts the app
+  inside the zip. Asserting the signature exists fails on a valid feed;
+  asserting it does not, ships an unverifiable one.
+- **The first version containing Sparkle is the update floor.** A release cut
+  before Sparkle was added has no framework and no `SU*` keys, so it can never
+  offer an update — there is no "Check for Updates" item in it to click. The
+  earliest end-to-end test is therefore first-Sparkle-version → the one after
+  it, not the release before. Worth knowing before planning a test around
+  installing the previous version.
 - **An accessory (`LSUIElement`) app must `NSApp.activate()` before
   `checkForUpdates`**, or the update panel opens behind whatever is frontmost.
 - Start the updater at launch — `SPUStandardUpdaterController(startingUpdater:
