@@ -29,18 +29,16 @@ because the user chose it.
 
 | Piece                                                 | Where                                                                                                                         |
 | ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Spec, then plan                                       | `superpowers-brainstorming` → `superpowers-writing-plans`                                                                     |
-| Per-task implementer + reviewer, final review, finish | `superpowers-subagent-driven-development`, `superpowers-requesting-code-review`, `superpowers-finishing-a-development-branch` |
-| Worktree per task                                     | `superpowers-using-git-worktrees`, `worktree-from-origin-main`                                                                |
+| Spec, then plan                                       | `superpowers:brainstorming` → `superpowers:writing-plans`                                                                     |
+| Per-task implementer + reviewer, final review, finish | `superpowers:subagent-driven-development`, `superpowers:requesting-code-review`, `superpowers:finishing-a-development-branch` |
+| Worktree per task                                     | `superpowers:using-git-worktrees`, `worktree-from-origin-main`                                                                |
 | Guardrails in every prompt                            | `never-no-verify`, `checkbox-evidence`                                                                                        |
 | Decision gates and status for the user                | `unique-option-numbering`, `visual-formatting`                                                                                |
 | Workflow script API, resume, completeness critic      | `workflow-authoring` skill and the Workflow tool, built into Claude Code                                                      |
 | Script templates                                      | [templates/](templates/)                                                                                                      |
 
-The `superpowers-*` skills are vendored copies of superpowers 6.4.1 (MIT);
-prefer the upstream `superpowers:*` names when that plugin is installed. See
-[vendor/superpowers/PROVENANCE.md](../../vendor/superpowers/PROVENANCE.md).
-`workflow-authoring` ships with Claude Code and is not vendored.
+The `superpowers:*` skills come from the superpowers plugin, which skillz
+declares as a dependency. `workflow-authoring` ships with Claude Code.
 
 ## Phases
 
@@ -231,7 +229,7 @@ sub-workflow. It resumes from the ledger like the others.
 Confirm `status: 'complete'`. Diff the graph against what ran (the result's
 `not_run`, lesson 5), then run the leftovers and the final verification's
 `gaps`. Then a whole-branch review
-and `superpowers-finishing-a-development-branch`.
+and `superpowers:finishing-a-development-branch`.
 
 ## Orchestrator checklist
 

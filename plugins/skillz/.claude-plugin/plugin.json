@@ -5,5 +5,11 @@
   "author": {
     "name": "Adam",
     "email": "adam@askclara.com"
-  }
+  },
+  "dependencies": [
+    {
+      "name": "superpowers",
+      "marketplace": "claude-plugins-official"
+    }
+  ]
 }
