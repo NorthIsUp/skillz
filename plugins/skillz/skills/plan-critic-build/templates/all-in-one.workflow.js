@@ -14,7 +14,7 @@ export const meta = {
 //   repo, worktrees, branch, prefix, trailer, rules, setup, mergeLock, locks, assets, briefing, maxParallel, fold, sideJobs, final,  // passed to wave-build as is
 //   plan:         '<abs path of the binding master plan>', spec: '<abs spec path>',
 //   planDir:      '<abs dir for chunk plans; the critic writes README.md with the Execution Graph there>',
-//   writingPlans: '<abs path: ~/.claude/plugins/cache/superpowers-marketplace/superpowers/<ver>/skills/writing-plans/SKILL.md>',
+//   writingPlans: '<abs path to a plan-format skill, e.g. superpowers writing-plans SKILL.md>',
 //   scratch:      '<abs dir for planner prototypes>',
 //   waveBuild:    '<abs path to wave-build.workflow.js>',
 //   priority:     'AA1',                                  // optional; chunk whose tasks go in the earliest waves

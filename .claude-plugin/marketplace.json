@@ -9,7 +9,6 @@
   "metadata": {
     "pluginRoot": "./plugins"
   },
-  "allowCrossMarketplaceDependenciesOn": ["superpowers-marketplace"],
   "plugins": [
     {
       "name": "skillz",
