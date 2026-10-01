@@ -9,7 +9,7 @@
   "metadata": {
     "pluginRoot": "./plugins"
   },
-  "allowCrossMarketplaceDependenciesOn": ["claude-plugins-official"],
+  "allowCrossMarketplaceDependenciesOn": ["superpowers-marketplace"],
   "plugins": [
     {
       "name": "skillz",
