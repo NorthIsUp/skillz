@@ -39,7 +39,7 @@ because the user chose it.
 
 Prefer the `superpowers:*` skills when that plugin is installed. Without it,
 any question-and-answer spec skill and plan generator does the job, e.g.
-`grill-me`, `grill-with-docs`, `to-prd` and `to-issues` from
+`grill-me`, `grill-with-docs`, `to-spec` and `to-tickets` from
 [mattpocock/skills](https://github.com/mattpocock/skills).
 `workflow-authoring` ships with Claude Code.
 
