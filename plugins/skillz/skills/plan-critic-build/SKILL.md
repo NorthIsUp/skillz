@@ -37,8 +37,11 @@ because the user chose it.
 | Workflow script API, resume, completeness critic      | `workflow-authoring` skill and the Workflow tool, built into Claude Code                                                      |
 | Script templates                                      | [templates/](templates/)                                                                                                      |
 
-The `superpowers:*` skills come from the superpowers plugin, which skillz
-declares as a dependency. `workflow-authoring` ships with Claude Code.
+Prefer the `superpowers:*` skills when that plugin is installed. Without it,
+any question-and-answer spec skill and plan generator does the job, e.g.
+`grill-me`, `grill-with-docs`, `to-prd` and `to-issues` from
+[mattpocock/skills](https://github.com/mattpocock/skills).
+`workflow-authoring` ships with Claude Code.
 
 ## Phases
 

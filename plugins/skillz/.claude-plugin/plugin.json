@@ -5,11 +5,5 @@
   "author": {
     "name": "Adam",
     "email": "adam@askclara.com"
-  },
-  "dependencies": [
-    {
-      "name": "superpowers",
-      "marketplace": "superpowers-marketplace"
-    }
-  ]
+  }
 }
