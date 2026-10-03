@@ -119,9 +119,14 @@ the `True` branch. Prefer `TypeIs` when available.
 
 ## What never to write
 
-- `from typing import Any` without a justification comment on its use.
+- `Any` unless it is unambiguously the correct type (SKILL.md Rule 2), and
+  never without a one-line comment saying why nothing narrower fits.
 - `-> dict` (bare) or `-> list` (bare).
-- `def f(*args, **kwargs):` without `*args: T, **kwargs: U`.
-- `cast(T, x)` as a way to silence the checker. Either narrow
-  properly or fix the upstream type.
-- `# type: ignore` without a specific error code: `# type: ignore[arg-type]`.
+- `def f(*args, **kwargs):` untyped. Type `**kwargs` as
+  `**kwargs: Unpack[SomeTypedDict]` (PEP 692) whenever the keys are known,
+  so each keyword is checked at the call site; `**kwargs: str` only when
+  the keys are genuinely open and the values uniform.
+- `cast(T, x)` or any suppression comment as a way to silence the checker.
+  Narrow properly or fix the upstream type; if neither works, it needs the
+  user's approval (SKILL.md Rule 2a). An approved suppression names its rule:
+  `# pyright: ignore[reportArgumentType]`, never a bare `# type: ignore`.

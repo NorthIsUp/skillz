@@ -21,8 +21,9 @@ to cases the rule doesn't literally cover.
 
 ## The bar
 
-- **Rule 1 — 100% typed.** Every signature, every attribute, every return. No untyped `def`, no implicit `Any` from a missing annotation. Pyright/mypy clean.
-- **Rule 2 — `Any` and `object` are last-resort.** If you use one, add a one-line comment above the annotation explaining _why_ a precise type isn't possible (untyped third-party lib, true dynamic dispatch, serialization boundary). No `Any` without that justification.
+- **Rule 1 — 100% typed.** Every signature, every attribute, every return. No untyped `def`, no implicit `Any` from a missing annotation. `**kwargs` is `**kwargs: Unpack[SomeTypedDict]` (PEP 692) whenever the keys are known, so every keyword is checked at the call site. Pyright and ty clean, both strict.
+- **Rule 2 — `Any` is effectively banned.** Use it only when it is unambiguously the correct type, not the convenient one: a value that genuinely passes through untouched and could be anything, never one you then read, index, or call. An untyped third-party value is not that case — write a stub or validate it with pydantic at the boundary. `object` is the honest spelling for "anything, and I won't touch it without narrowing". Every `Any` carries a one-line comment saying why nothing narrower is correct.
+- **Rule 2a — `cast` and suppression comments need the user's approval.** `cast(...)`, `# type: ignore`, `# pyright: ignore[...]`, and `# ty: ignore[...]` assert something the checker could not prove, so they are a last resort, not a fix. First exhaust the honest routes: narrowing (`isinstance`, `match`, `assert`, `TypeGuard`/`TypeIs`), a correct annotation or generic, pydantic validation at the boundary, official stubs, a local stub, or an upstream stub fix. If one is still needed, stop and ask the user, naming the exact diagnostic and what you tried. An agent never grants itself this. Once approved, keep it to one place (a single typed helper rather than 15 call sites), name the rule it silences, and give it a one-line reason. Configure both checkers to error on an unused suppression, so a stale one can't outlive its cause.
 - **Rule 3 — Never return `list[Any]` or `dict[str, Any]`.** That's a missing type, not a type. Define a pydantic model (or a `TypedDict`) and return that. See `references/typing.md`.
 - **Rule 4 — Pydantic first for data with shape or boundaries.** Structured data is a `pydantic.BaseModel`, both at I/O boundaries (HTTP, queue, file, LLM tool call, config) and for internal value objects. A wrapped list, dict, or scalar is a `RootModel[T]`. Use `@dataclass` only where pydantic isn't a dependency. JSON input is parsed straight into its model with `Model.model_validate_json(raw)`, never `json.loads` followed by dict access. Plain dicts are not a data model. See `references/pydantic.md`.
 - **Rule 5 — Methods live on the model, not in utility modules.** If a function's first argument is a `User`, it's a method on `User`. Don't write `def _normalize_email(user: User) -> str` in a `helpers.py`; write `User.normalize_email(self) -> str`. Behavior belongs with the data it operates on. Reasons it matters:
@@ -133,13 +134,18 @@ Before adding a new dependency, check whether `anyio` or `asyncstdlib` already c
 
 Start from `NorthIsUp/template-python`: `gh repo create <owner>/<name> --template NorthIsUp/template-python --clone` (the `new-project` skill has the rename steps). It ships mise (Python 3.13, uv, ruff, hk, pkl), a uv-built package under `src/`, ruff with a broad rule set including `ANN`, pyright, pytest, and hk hooks (ruff + pyright on commit, pytest on push). One `ci.yml` tests every push; on `main`, a version bump (`mise run bump-{patch,minor,major}`) tags `v<version>`, publishes to PyPI by trusted publishing, and cuts a GitHub release.
 
-Two template defaults sit below this bar; fix them in a new project: pyright's `typeCheckingMode = "basic"` becomes `"strict"`, and pytest's `asyncio_mode = "auto"` gives way to the anyio plugin (Rule 9).
+Template defaults that sit below this bar; fix them in a new project:
+
+- Pyright's `typeCheckingMode = "basic"` becomes `"strict"`, plus `reportImplicitOverride`, `reportMissingTypeStubs`, and `reportUnnecessaryTypeIgnoreComment` as errors, and `enableTypeIgnoreComments = false` so every suppression names its rule.
+- Add ty beside pyright: `[tool.ty.rules] all = "error"`, `[tool.ty.analysis] respect-type-ignore-comments = false`, run with `ty check --error-on-warning`.
+- Both checkers run from hk, on pre-commit and pre-push, and in CI through the same hk step, so local and CI can't disagree. Strict from the first commit is cheap; turning it on later means a sweep.
+- pytest's `asyncio_mode = "auto"` gives way to the anyio plugin (Rule 9).
 
 ## Tooling
 
 - **Ruff is the formatter and the linter.** `ruff format` for formatting, `ruff check` for linting — one tool, one config. Not `black`, not `flake8`, not `isort`, not `pylint`. No formatting or style opinions in this skill or in code review; ruff decides. Configure rules in `[tool.ruff.lint]` in `pyproject.toml`; don't ship `# noqa` lines without an inline reason.
-- **Pyright is the type-checker.** Not mypy, not pytype. Pyright enforces Rules 1, 2, 3, and the exhaustiveness of Rule 6. Configure `typeCheckingMode = "strict"` in `[tool.pyright]` (or `pyrightconfig.json`) and treat warnings as errors. The checks that matter most: `reportUnusedCoroutine`, `reportMissingTypeStubs`, `reportUnknownArgumentType`, `reportUnknownMemberType`, `reportImplicitOverride`.
-- **Pre-push pipeline: `ruff format && ruff check --fix && pyright`.** Ruff does formatting + style; pyright does correctness. If `hk` / `pre-commit` is wired up, that's the canonical entry point.
+- **Pyright and ty are the type-checkers, both strict.** Not mypy, not pytype. Pyright enforces Rules 1, 2, 3, and the exhaustiveness of Rule 6; ty catches `Any` leaking into typed code (`unsound-assignment`, `unsound-return-statement`) that pyright strict lets through. Configure pyright with `typeCheckingMode = "strict"` and ty with `all = "error"`, and treat warnings as errors in both. The pyright checks that matter most: `reportUnusedCoroutine`, `reportMissingTypeStubs`, `reportUnknownArgumentType`, `reportUnknownMemberType`, `reportImplicitOverride`.
+- **Run them through hk: `ruff format && ruff check --fix && pyright && ty check`.** Ruff does formatting and style; pyright and ty do correctness. hk is the canonical entry point on commit, push, and in CI.
 
 ## When you're editing Python
 
@@ -178,35 +184,38 @@ See `references/pydantic.md` for model factory patterns.
 
 ## Anti-patterns (reject on sight)
 
-| Smell                                           | Replace with                                      |
-| ----------------------------------------------- | ------------------------------------------------- |
-| `def f(x):` (no annotations)                    | Full signature with types                         |
-| `-> dict[str, Any]` / `-> list[dict]`           | `TypedDict` or pydantic model                     |
-| `def helper(model: M, ...)` in a utils module   | A method on `M`                                   |
-| `def _make_user(...) -> User` in a test file    | `@pytest.fixture` returning the factory           |
-| Three-arm `if isinstance(x, A): ... elif ...`   | `match x: case A(): ...`                          |
-| `asyncio.gather(*tasks)` for fan-out            | `async with asyncio.TaskGroup() as tg:`           |
-| `asyncio.create_task(f())` then forgetting it   | `tg.create_task(f())` inside a task group         |
-| `asyncio.wait_for(...)` for a deadline          | `async with asyncio.timeout(...):`                |
-| `threading.Thread` for I/O concurrency          | async + task group                                |
-| `time.sleep` in async code                      | `await asyncio.sleep(...)`                        |
-| `open(...)` / `Path.read_text()` in async code  | `await anyio.Path(p).read_text()`                 |
-| `os.path` / `pathlib` for disk access           | `anyio.Path` (plain `Path` for path algebra only) |
-| Hand-rolled `async for` accumulation loop       | `import asyncstdlib as a` → `a.map` / `a.filter`  |
-| `for x in await collect_all(): ...`             | `async for x in stream: ...` (via `asyncstdlib`)  |
-| `json.loads(raw)` then `data["key"]`            | `Model.model_validate_json(raw)`                  |
-| Plain dict as a data carrier across modules     | pydantic model (or `TypedDict` if internal-only)  |
-| `@dataclass` in a project that has pydantic     | `BaseModel` (`frozen=True`), or `RootModel[T]`    |
-| `**kwargs: Any` for config                      | A `BaseModel` for config; pass the model          |
-| `@property` doing real I/O                      | Make it an explicit `async def` method            |
-| `cast(T, x)` to silence pyright                 | Fix the type at the source, or `TypeGuard`        |
-| `pickle` / `shelve` / `dill` for persistence    | `model_dump_json()` + `model_validate_json()`     |
-| `pandas.to_pickle`, `numpy` `allow_pickle`      | Parquet / Arrow / `npz` without pickle            |
-| A model instance as a cache or queue payload    | A versioned pydantic schema, dumped to JSON       |
-| `timeout: int` / `ttl: int` (unit only in docs) | `timeout: timedelta`; `timeout_seconds` at an API |
-| `created_at: str` / epoch `int` on a model      | `created_at: datetime` (tz-aware)                 |
-| `datetime.utcnow()`                             | `datetime.now(UTC)`                               |
-| Stored blob with no version field               | A `v: Literal[N]` on the model                    |
+| Smell                                                   | Replace with                                                   |
+| ------------------------------------------------------- | -------------------------------------------------------------- |
+| `def f(x):` (no annotations)                            | Full signature with types                                      |
+| `-> dict[str, Any]` / `-> list[dict]`                   | `TypedDict` or pydantic model                                  |
+| `def helper(model: M, ...)` in a utils module           | A method on `M`                                                |
+| `def _make_user(...) -> User` in a test file            | `@pytest.fixture` returning the factory                        |
+| Three-arm `if isinstance(x, A): ... elif ...`           | `match x: case A(): ...`                                       |
+| `asyncio.gather(*tasks)` for fan-out                    | `async with asyncio.TaskGroup() as tg:`                        |
+| `asyncio.create_task(f())` then forgetting it           | `tg.create_task(f())` inside a task group                      |
+| `asyncio.wait_for(...)` for a deadline                  | `async with asyncio.timeout(...):`                             |
+| `threading.Thread` for I/O concurrency                  | async + task group                                             |
+| `time.sleep` in async code                              | `await asyncio.sleep(...)`                                     |
+| `open(...)` / `Path.read_text()` in async code          | `await anyio.Path(p).read_text()`                              |
+| `os.path` / `pathlib` for disk access                   | `anyio.Path` (plain `Path` for path algebra only)              |
+| Hand-rolled `async for` accumulation loop               | `import asyncstdlib as a` → `a.map` / `a.filter`               |
+| `for x in await collect_all(): ...`                     | `async for x in stream: ...` (via `asyncstdlib`)               |
+| `json.loads(raw)` then `data["key"]`                    | `Model.model_validate_json(raw)`                               |
+| Plain dict as a data carrier across modules             | pydantic model (or `TypedDict` if internal-only)               |
+| `@dataclass` in a project that has pydantic             | `BaseModel` (`frozen=True`), or `RootModel[T]`                 |
+| `**kwargs: Any` for config                              | A `BaseModel` for config; pass the model                       |
+| `**kwargs: Any` / untyped `**kwargs` passthrough        | `**kwargs: Unpack[SomeTypedDict]`                              |
+| `@property` doing real I/O                              | Make it an explicit `async def` method                         |
+| `cast(T, x)` to silence the checker                     | Fix the type at the source, or `TypeGuard`; else ask (Rule 2a) |
+| `# type: ignore` / `# pyright: ignore` / `# ty: ignore` | Fix the type at the source; else ask (Rule 2a)                 |
+| `Any` because the real type is awkward                  | The real type, a stub, or pydantic (Rule 2)                    |
+| `pickle` / `shelve` / `dill` for persistence            | `model_dump_json()` + `model_validate_json()`                  |
+| `pandas.to_pickle`, `numpy` `allow_pickle`              | Parquet / Arrow / `npz` without pickle                         |
+| A model instance as a cache or queue payload            | A versioned pydantic schema, dumped to JSON                    |
+| `timeout: int` / `ttl: int` (unit only in docs)         | `timeout: timedelta`; `timeout_seconds` at an API              |
+| `created_at: str` / epoch `int` on a model              | `created_at: datetime` (tz-aware)                              |
+| `datetime.utcnow()`                                     | `datetime.now(UTC)`                                            |
+| Stored blob with no version field                       | A `v: Literal[N]` on the model                                 |
 
 ## Reviewing Python (PRs, diffs)
 
