@@ -2,9 +2,10 @@
 # PreToolUse gate for never-no-verify: a failing hook is a finding to
 # root-cause, so the bypass is blocked rather than left to willpower.
 #
-# Matches the raw payload instead of parsing .tool_input.command — a Bash call
-# that mentions both `git` and a bypass flag is the thing we're blocking, even
-# when it only appears in the description.
+# `--no-verify` is matched on the raw payload — a Bash call that mentions both
+# `git` and the flag is blocked even when it only appears in the description.
+# The short form `git commit -n` needs the parsed command: it can sit in a flag
+# cluster (`-qn`, `-an`) or after `git -C <dir>`, and `push -n` is a dry run.
 set -uo pipefail
 
 payload=$(cat)
@@ -12,12 +13,25 @@ payload=$(cat)
 # The human's per-commit grant, spelled out in the command itself.
 case $payload in *NO_VERIFY_OK=1*) exit 0 ;; esac
 
-case $payload in
-*git*--no-verify* | *'git commit -n'* | *'git push --no-verify'*)
-	echo "Blocked by skillz rule never-no-verify: --no-verify bypasses the only gate between a broken commit and the default branch." >&2
+block() {
+	echo "Blocked by skillz rule never-no-verify: --no-verify (or commit -n) bypasses the only gate between a broken commit and the default branch." >&2
 	echo "Root-cause the failing hook instead — the code is wrong, or the hook is wrong; fix whichever it is." >&2
 	echo "If the human grants a per-commit bypass, they say so and the command carries NO_VERIFY_OK=1." >&2
 	exit 2
-	;;
-esac
+}
+
+case $payload in *git*--no-verify*) block ;; esac
+
+command=$(jq -r '.tool_input.command // empty' <<<"$payload" 2>/dev/null)
+[[ -n $command ]] || exit 0
+
+# Quoted text (commit messages, greps) can't carry a flag; drop it, then check
+# each shell segment that runs `git [global opts] commit`.
+unquoted=$(sed -E "s/'[^']*'//g; s/\"([^\"\\\\]|\\\\.)*\"//g" <<<"$command")
+while IFS= read -r segment; do
+	if grep -Eq '(^|[[:space:]])git([[:space:]]+-[^[:space:]]+([[:space:]]+[^-[:space:]][^[:space:]]*)?)*[[:space:]]+commit([[:space:]]|$)' <<<"$segment" &&
+		grep -Eq '[[:space:]]commit([[:space:]].*)?[[:space:]]-[A-Za-z]*n[A-Za-z]*([[:space:]]|$)' <<<"$segment"; then
+		block
+	fi
+done < <(sed -E 's/(&&|\|\||;|\|)/\n/g' <<<"$unquoted")
 exit 0
