@@ -311,15 +311,43 @@ the win the reader is waiting for; a `MERGED` buried in a status line gets
 missed. One line in a heavy box, written as markdown — not in a code block —
 so the PR number is a link and the merge commit renders as code:
 
-```markdown
+```text
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\
-┃ 🚢 PR SHIPPED [#53](https://github.com/NorthIsUp/skillz/pull/53) → main (`7883297`) visual-formatting "PR shipped"\
+┃  🚢 PR SHIPPED  [#53](https://github.com/NorthIsUp/skillz/pull/53) → main (`7883297`)  visual-formatting "PR shipped"\
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
 The trailing `\` is a markdown hard break; without it the three lines
 collapse into one paragraph. After the link: base branch, short merge
 commit, PR title.
+
+Below the line, two optional sections. Skip both and the block is just the
+one line.
+
+```text
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\
+┃  🚢 PR SHIPPED  [#3675](https://github.com/org/repo/pull/3675) → main (`a1b2c3d`)  etl-v2 flag cleanup\
+┠──────────────────────────────────────\
+┃  ‼️ ALL_USERS is now the only thing building gold for etl-v2 readers\
+┃     → set etl-v2 to 0% before ever turning it off\
+┃  📦 settings probe shares prod's parser; 2 duplicate tests removed\
+┃  ✅ duplicate launch risk ...... harmless: per-user run limit 1\
+┃  🔀 forwarded ................. etl_progress lacks the erased-user filter → its reviewer\
+┃  ✅ open question answered .... GKE code location IS "clara-pipelines"\
+┠─ next ───────────────────────────────\
+┃  🚀 set `ETL_V2_ROLLOUT=0` in staging ESC before the next deploy\
+┃  🧪 test it on staging: https://staging.example.com/etl\
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+- **Contents** — what the PR contained, high level, at most five lines. ‼️
+  for a behavior change, with `→` lines for its consequence; 📦 for what
+  changed; ✅ for a risk ruled out, a question answered, or something
+  deliberately kept; 🔀 for something handed to someone else. Dot leaders
+  when a line is label plus verdict.
+- **next** — only what the reader does now that it's merged: env vars,
+  migrations, manual steps, or "test it at URL" for something they asked
+  about earlier.
 
 Only after refetching the state and seeing `MERGED` — not on open, approval
 or auto-merge queued. One block per merged PR. When the merge is also the
