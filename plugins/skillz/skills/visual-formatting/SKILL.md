@@ -114,7 +114,7 @@ Reuse the _same_ glyphs everywhere:
 - 📦 artifact
 - 🗄️ data/table
 - 🔀 PR
-- 🚢 PR shipped (merged)
+- 🚢 PR merged
 - ❗️ interesting info
 - ‼️ important info
 - ❓ question
@@ -304,7 +304,7 @@ opening the link — `OPEN` / `DRAFT` / `MERGED` / `CLOSED`:
 Not `#44 https://…` — a bare number hides whether it merged. Refetch the
 state at summary time; never carry a stale `OPEN` after a merge.
 
-## "PR shipped"
+## "PR merged"
 
 The moment you see a PR merge, say so with a block of its own. A merge is
 the win the reader is waiting for; a `MERGED` buried in a status line gets
@@ -313,7 +313,7 @@ so the PR number is a link and the merge commit renders as code:
 
 ```text
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\
-┃  🚢 PR SHIPPED  [#53](https://github.com/NorthIsUp/skillz/pull/53) → main (`7883297`)  visual-formatting "PR shipped"\
+┃  🚢 [#53](https://github.com/NorthIsUp/skillz/pull/53) MERGED → main (`7883297`) — visual-formatting "PR merged"\
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
@@ -326,7 +326,7 @@ one line.
 
 ```text
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\
-┃  🚢 PR SHIPPED  [#3675](https://github.com/org/repo/pull/3675) → main (`a1b2c3d`)  etl-v2 flag cleanup\
+┃  🚢 [#3675](https://github.com/org/repo/pull/3675) MERGED → main (`a1b2c3d`) — etl-v2 flag cleanup\
 ┠──────────────────────────────────────\
 ┃  ‼️ ALL_USERS is now the only thing building gold for etl-v2 readers\
 ┃     → set etl-v2 to 0% before ever turning it off\
