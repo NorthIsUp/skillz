@@ -23,9 +23,9 @@ at most 20 minutes). `scripts/asc.py` builds it; `uv run asc.py` prints one for 
 4. Attach the build to the App Store version so the ASC grid shows the icon:
    `PATCH /v1/appStoreVersions/{id}/relationships/build` with `{"data": {"type": "builds", "id": …}}`.
    Returns 204 with an empty body; don't parse it. It doesn't submit anything. Do it from CI on
-   every upload, not once by hand: find the version with `GET /v1/apps/{id}/appStoreVersions?
-filter[platform]=IOS&filter[appStoreState]=PREPARE_FOR_SUBMISSION`. A 0.1.2 build attaches to a
-   1.0 version without complaint (TSMux, 2026-10).
+   every upload, not once by hand. Find the version with
+   `GET /v1/apps/{id}/appStoreVersions?filter[platform]=IOS&filter[appStoreState]=PREPARE_FOR_SUBMISSION`.
+   A 0.1.2 build attaches to a 1.0 version without complaint (TSMux, 2026-10).
 
 The grid also shows macOS and visionOS rows for an iPhone/iPad app by default. Those rows stay grey
 forever because no build for those platforms will ever exist; ignore them.
