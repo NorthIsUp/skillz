@@ -49,6 +49,10 @@ run = "scripts/test-bump-plugin.sh"
 description = "Self-check the next-option-id hook"
 run = "scripts/test-next-option-id.sh"
 
+[tasks.test-block-no-verify]
+description = "Self-check the never-no-verify hook (every commit -n / --no-verify spelling)"
+run = "scripts/test-block-no-verify.sh"
+
 [tasks.test-sync-rules]
 description = "Self-check sync-rules hook (mirrors rules/, injects only changes)"
 run = "scripts/test-sync-rules.sh"
