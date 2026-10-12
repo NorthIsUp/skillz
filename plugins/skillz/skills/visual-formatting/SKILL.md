@@ -203,6 +203,34 @@ say **MI1** or **MI2**, and **MG4** or **MG5**
 Repeat the list, keeping the same IDs (`unique-option-numbering`). Don't
 point back to it, even when it's only one message up.
 
+### Recaps of older picks carry their own context
+
+A "still waiting on you" recap, or any mention of an ID from an earlier turn,
+has to be decidable without scrolling back. A topic label is not enough:
+
+```text
+Still waiting on you:
+- **QF4-QF5:** the cleanup follow-ups, QF4 first
+- **QG1** or **QG2:** cache rollout
+```
+
+Each option line carries the action, the thing it acts on, the cost that
+matters (time, $, prod write, risk), and ⭐ on the recommended one. One ID per
+line, never a range; options group under one short line naming the decision.
+Context beats brevity here, because a pick the reader can't decide is a pick
+that doesn't get made.
+
+```text
+Still waiting on you:
+  Clean up the orphaned upload rows?
+  QF4 ⭐ delete orphaned rows in uploads table ...... prod write, ~2k rows
+  QF5    archive them to cold storage first ......... +1 day, reversible
+  Roll out the profile cache?
+  QG1 ⭐ enable for staff accounts only ............. 10 min, no user impact
+  QG2    enable for everyone ........................ 10 min, cold-cache p95 spike
+say **QF4** or **QF5**, and **QG1** or **QG2**
+```
+
 ## Unacceptable: "say AB1 or AB2" with no options anywhere
 
 A real reply, trimmed. It ends by asking for a pick, but AB1 and AB2 are never
