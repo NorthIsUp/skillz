@@ -1,12 +1,37 @@
 import { atom, read, update } from 'claude-code'
-import type { Register } from 'claude-code'
+import type { EngineInterface, Register } from 'claude-code'
 
 import type { Span } from '../types'
 import { parseAnsi } from './ansi'
+import { menuFrom, readLayout, writeLayout } from './layout'
+import type { Layout } from './layout'
 
 const lines = atom({ plugin: 'cc-statusline', key: 'lines' } as const, [] as Span[][])
 
 const TICK_MS = 2000
+const PANE = 'cc-statusline-config'
+const COMMAND = 'statusline-config'
+
+// Same lookup as cc-statusline's config_path().
+async function configPath($: EngineInterface): Promise<string> {
+  const xdg = await $.env.get('XDG_CONFIG_HOME')
+  const base = xdg || `${(await $.env.get('HOME')) ?? ''}/.config`
+  return `${base}/cc-statusbar/config.toml`
+}
+
+// A missing file reads as empty: writeLayout then starts one.
+async function readConfig($: EngineInterface): Promise<string> {
+  try {
+    return await $.fs.read(await configPath($))
+  } catch {
+    return ''
+  }
+}
+
+const isLayout = (v: unknown): v is Layout => {
+  const names = (x: unknown) => Array.isArray(x) && x.every(n => typeof n === 'string')
+  return typeof v === 'object' && v !== null && names((v as Layout).left) && names((v as Layout).right)
+}
 
 // $.session.model() is the id; the status line shows the display name.
 export const displayName = (id: string) =>
@@ -72,9 +97,41 @@ export const register: Register = on => {
         isRunning = false
       }
     }
+    await $.command.register({
+      name: COMMAND,
+      description: 'Choose and order the status line sections',
+    })
     $.clock.every(TICK_MS, () => void refresh())
     void refresh()
     return next(e)
+  })
+
+  on('command.run', { command: COMMAND }, async $ => {
+    await $.ui.open({ id: PANE, title: 'Status line sections', focus: true, closeOnEscape: true })
+    await $.ui.focus({ requestId: PANE, key: 'menu' })
+    return { text: 'Status line sections opened.' }
+  })
+
+  // Client, the one element that takes raw arrow keys, is terminal-only.
+  on('ui.render', { component: 'Pane', requestId: PANE, surface: 'terminal' }, async ($, e) => {
+    const { Box, Client } = $.ui.resolve(e)
+    const { rows } = menuFrom(readLayout(await readConfig($)))
+    return (
+      <Box flexDirection="column">
+        <Client key="menu" module="./menu.tsx" props={{ rows }} />
+      </Box>
+    )
+  })
+
+  // Every change saves at once, so the band shows it on the next tick.
+  on('ui.message', async ($, e, next) => {
+    if (e.requestId !== PANE || !isLayout(e.data)) return next(e)
+    try {
+      await $.fs.write(await configPath($), writeLayout(await readConfig($), e.data))
+    } catch (err) {
+      $.ui.toast(`cc-statusline: could not save the layout (${String(err)})`)
+    }
+    return {}
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {

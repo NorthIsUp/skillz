@@ -1,7 +1,7 @@
 {
   "name": "cc-statusline",
   "description": "Draws cc-statusline as a band above the prompt: runs the binary on a 2s tick and turns its ANSI colors and OSC 8 links into styled text.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "types": "./types/index.d.ts",
   "author": {
     "name": "NorthIsUp",

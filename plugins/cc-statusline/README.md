@@ -18,6 +18,23 @@ Needs `cc-statusline` on `PATH`.
 
 Then remove `statusLine` from `~/.claude/settings.json`, or both will draw.
 
+## Choosing sections
+
+`/statusline-config` opens a checklist of every section:
+
+| Key           | Does                              |
+| ------------- | --------------------------------- |
+| ↑ ↓           | move the cursor                   |
+| space / enter | show or hide the section          |
+| ← →           | move the section earlier or later |
+| esc           | close                             |
+
+Sections above the `right side` row go on the left of the line, the rest on
+the right; move that row to rebalance. Each change is written straight to
+`[layout] left/right` in `~/.config/cc-statusbar/config.toml` (other lines
+are kept), so the line updates within 2s. Click the list first if the
+arrows don't reach it.
+
 ## Gaps
 
 - `fast_mode` and `output_style` are not sent, so those parts of the line stay empty.
