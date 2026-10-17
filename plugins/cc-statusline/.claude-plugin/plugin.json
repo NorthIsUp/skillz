@@ -1,0 +1,14 @@
+{
+  "name": "cc-statusline",
+  "description": "Draws cc-statusline as a band above the prompt: runs the binary on a 2s tick and turns its ANSI colors and OSC 8 links into styled text.",
+  "version": "0.1.0",
+  "types": "./types/index.d.ts",
+  "author": {
+    "name": "NorthIsUp",
+    "url": "https://github.com/NorthIsUp"
+  },
+  "homepage": "https://github.com/NorthIsUp/skillz/tree/main/plugins/cc-statusline",
+  "repository": "https://github.com/NorthIsUp/skillz",
+  "license": "MIT",
+  "keywords": ["statusline", "mod", "function-hooks", "band"]
+}
