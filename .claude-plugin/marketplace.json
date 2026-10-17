@@ -38,7 +38,7 @@
       "name": "cc-statusline",
       "source": "./plugins/cc-statusline",
       "description": "Draw cc-statusline as a band above the prompt",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "category": "productivity",
       "tags": ["statusline", "mod", "function-hooks"]
     }
