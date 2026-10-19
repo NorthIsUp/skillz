@@ -36,6 +36,9 @@ const VF_TOOL = 'mcp__skillz__vf_set'
 const ASK_TOOL = 'mcp__skillz__ask'
 const pending = atom({ plugin: 'skillz', key: 'ask' } as const, null)
 
+export const answers = (ask: Ask, text: string) =>
+  ask.options.some(o => new RegExp(`(^|[^A-Za-z0-9.])${o.id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^A-Za-z0-9.]|$)`).test(text))
+
 export const askBlock = (ask: Ask) =>
   [
     '╭────────────────────────────────────────',
@@ -126,9 +129,10 @@ export const register: Register = on => {
     return { result: askBlock(ask) }
   })
 
-  // Any message from the user answers (or abandons) the pinned question.
+  // Sticky: only a message naming one of its option ids answers it.
   on('prompt.submit', async ($, e, next) => {
-    await update($, pending, () => null)
+    const ask = await read($, pending)
+    if (ask && answers(ask, e.text)) await update($, pending, () => null)
     return next(e)
   })
 
@@ -174,7 +178,12 @@ export const register: Register = on => {
       <Box flexDirection="column">
         {below}
         <Box flexDirection="column" borderStyle="round" paddingX={1}>
-          <Text bold>❓ {ask.question}</Text>
+          <Box>
+            <Text bold>❓ {ask.question} </Text>
+            <Button key="ask-dismiss" plain role="dismiss" onPress={() => update($, pending, () => null)}>
+              ✕
+            </Button>
+          </Box>
           {ask.options.map(o => (
             <Button
               key={`ask-${o.id}`}

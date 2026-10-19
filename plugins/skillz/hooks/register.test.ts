@@ -1,6 +1,6 @@
 import { expect, mock, test } from 'claude-code/testing'
 
-import { checklist } from './register'
+import { answers, checklist } from './register'
 
 const ARGS = { model: 'claude-opus-5-5', promptModel: 'claude-opus-5-5', outputStyle: null, tools: [], surfaces: [], traits: [] }
 
@@ -105,3 +105,14 @@ for (const surface of ['terminal', 'desktop'] as const) {
     expect(await ui.find({ key: 'ask-G2' })).toBeUndefined()
   })
 }
+
+test('only a message naming an option id answers the pinned question', () => {
+  const ask = { question: 'q', options: [{ id: 'J1', label: 'a' }, { id: 'J2', label: 'b' }] }
+  expect(answers(ask, 'J2')).toBe(true)
+  expect(answers(ask, 'go with **J1** please')).toBe(true)
+  expect(answers(ask, 'what about J12?')).toBe(false)
+  expect(answers(ask, 'can we make it sticky?')).toBe(false)
+  const nested = { question: 'q', options: [{ id: 'AA1.1', label: 'a' }, { id: 'AA1.2', label: 'b' }] }
+  expect(answers(nested, 'AA1.2')).toBe(true)
+  expect(answers(nested, 'AA1x1')).toBe(false)
+})
