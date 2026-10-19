@@ -176,6 +176,12 @@ One question per block, at most one block per message, placed last so it's the
 final thing read. Options carry globally-unique IDs (`unique-option-numbering`).
 No block when you can pick a sensible default and say what you picked.
 
+Ask a question once. A reply to an agent, teammate, CI or other background
+event is not a turn the reader asked for, so it never re-asks a pick that's
+still pending — not as a block, not as a "still open" recap. Re-ask only when
+the reader sends a message without answering it, or when the options
+changed; then restate it in full, once.
+
 ## Unacceptable: bare option IDs
 
 Every option must be restated in the message that asks for the pick. No
@@ -346,7 +352,8 @@ so the PR number is a link and the merge commit renders as code:
 ```
 
 The trailing `\` is a markdown hard break; without it the three lines
-collapse into one paragraph. After the link: base branch, short merge
+collapse into one paragraph. Every line but the bottom rule gets one — on
+the bottom rule it prints as a literal `\`. After the link: base branch, short merge
 commit, PR title.
 
 Below the line, two optional sections. Skip both and the block is just the
