@@ -74,3 +74,19 @@ test('the agent switches a decision off and on with vf_set', async ($, on) => {
   await $.tool.call({ tool: 'mcp__skillz__vf_set', id: 'boxes', enabled: true })
   expect((await $.prompt.compose(ARGS)).sections).toEqual([])
 })
+
+for (const surface of ['terminal', 'desktop'] as const) {
+  test(`the band above the prompt toggles a decision (${surface})`, async ($, on) => {
+    on('prompt.compose', async () => ({ sections: [] }))
+    mock.store(on)
+    on('ui.render', { component: 'AbovePrompt' }, async () => ({ type: 'Box' as const }))
+    const ui = await $.ui.mount({
+      plugin: 'skillz',
+      surface,
+      component: 'AbovePrompt',
+      props: { hasSurvey: false, isWorking: false, maxRows: 4, bodyColumns: 100, scroll: { offset: 0, bodyRows: 4 }, view: {} },
+    })
+    await ui.press({ key: 'band-emoji' })
+    expect((await $.prompt.compose(ARGS)).sections[0]?.text).toContain('emoji anchors')
+  })
+}
