@@ -60,7 +60,7 @@ test('skillz-update updates every plugin then queues both reloads', async ($, on
   // the reloads run detached after the command answers
   for (let i = 0; i < 50 && ran.length < 2 && toasts.length === 0; i++) await Promise.resolve()
   expect(toasts).toEqual([])
-  expect(ran).toEqual(['reload-plugins', 'reload-skills'])
+  expect(ran).toEqual(['reload-skills', 'reload-plugins'])
 })
 
 test('the agent switches a decision off and on with vf_set', async ($, on) => {
