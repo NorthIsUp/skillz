@@ -62,3 +62,15 @@ test('skillz-update updates every plugin then queues both reloads', async ($, on
   expect(toasts).toEqual([])
   expect(ran).toEqual(['reload-plugins', 'reload-skills'])
 })
+
+test('the agent switches a decision off and on with vf_set', async ($, on) => {
+  on('prompt.compose', async () => ({ sections: [] }))
+  mock.store(on)
+  const offCall = await $.tool.call({ tool: 'mcp__skillz__vf_set', id: 'boxes', enabled: false })
+  expect(String(offCall.result)).toContain('2. [ ] L1/L2/L3 boxed headers')
+  const { sections } = await $.prompt.compose(ARGS)
+  expect(sections[0]?.text).toContain('box-drawing headers')
+
+  await $.tool.call({ tool: 'mcp__skillz__vf_set', id: 'boxes', enabled: true })
+  expect((await $.prompt.compose(ARGS)).sections).toEqual([])
+})
