@@ -176,6 +176,10 @@ One question per block, at most one block per message, placed last so it's the
 final thing read. Options carry globally-unique IDs (`unique-option-numbering`).
 No block when you can pick a sensible default and say what you picked.
 
+When the `mcp__skillz__ask` tool is available, call it with the same question
+and option IDs as well: it pins the options above the prompt until the reader
+answers. Still print the block in the reply.
+
 Ask a question once. A reply to an agent, teammate, CI or other background
 event is not a turn the reader asked for, so it never re-asks a pick that's
 still pending — not as a block, not as a "still open" recap. Re-ask only when

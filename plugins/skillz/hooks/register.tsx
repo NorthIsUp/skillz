@@ -1,6 +1,8 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
+import type { Ask } from '../types'
+
 const PANE = 'vf'
 const STORE_KEY = 'vfOff'
 const off = atom({ plugin: 'skillz', key: 'vfOff' } as const, [])
@@ -31,6 +33,18 @@ const PLUGINS = ['skillz', 'tmux-session-resume', 'guarded-worktrees'] as const
 const lastLine = (out: string) => out.trim().split('\n').at(-1) ?? ''
 
 const VF_TOOL = 'mcp__skillz__vf_set'
+const ASK_TOOL = 'mcp__skillz__ask'
+const pending = atom({ plugin: 'skillz', key: 'ask' } as const, null)
+
+export const askBlock = (ask: Ask) =>
+  [
+    '╭────────────────────────────────────────',
+    `│  ❓ ${ask.question}`,
+    '│',
+    ...ask.options.map(o => `│  ${o.id}${o.recommended ? ' ⭐' : ''}  ${o.label}${o.detail ? ` ..... ${o.detail}` : ''}`),
+    '╰────────────────────────────────────────',
+    `say ${ask.options.map(o => `**${o.id}**`).join(' or ')}`,
+  ].join('\n')
 
 const setEnabled = async ($: EngineInterface, id: string, enabled: boolean) => {
   const next = await update($, off, list => (enabled ? list.filter(x => x !== id) : list.includes(id) ? list : [...list, id]))
@@ -60,6 +74,34 @@ export const register: Register = on => {
         required: ['id', 'enabled'],
       },
     })
+    await $.tool.register({
+      name: 'ask',
+      isDeferred: false,
+      description:
+        'Pin a question with labeled options above the user\'s prompt until they answer; picking one sends its id as their reply. Call it whenever a reply ends asking the user to pick (the question block of the visual-formatting rule), with the same ids. Returns the block as text: also print it as the last thing in your reply, then end your turn.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          question: { type: 'string' },
+          options: {
+            type: 'array',
+            minItems: 2,
+            maxItems: 9,
+            items: {
+              type: 'object',
+              properties: {
+                id: { type: 'string', description: 'globally unique option id, e.g. G1' },
+                label: { type: 'string', description: 'who acts (Agent/User) and what happens' },
+                detail: { type: 'string', description: 'cost or tradeoff' },
+                recommended: { type: 'boolean' },
+              },
+              required: ['id', 'label'],
+            },
+          },
+        },
+        required: ['question', 'options'],
+      },
+    })
     await $.command.register({ name: 'vf', description: 'Toggle visual-formatting decisions' })
     return next(e)
   })
@@ -74,6 +116,20 @@ export const register: Register = on => {
     if (!DECISIONS.some(d => d.id === e.id) || typeof e.enabled !== 'boolean')
       return { deny: `unknown decision ${String(e.id)} or non-boolean enabled` }
     return { result: checklist(await setEnabled($, e.id, e.enabled)) }
+  })
+
+  on('tool.call', { tool: ASK_TOOL }, async ($, e) => {
+    const options = Array.isArray(e.options) ? e.options.filter(o => typeof o?.id === 'string' && typeof o?.label === 'string') : []
+    if (typeof e.question !== 'string' || options.length < 2) return { deny: 'need a question and at least two options with id and label' }
+    const ask: Ask = { question: e.question, options }
+    await update($, pending, () => ask)
+    return { result: askBlock(ask) }
+  })
+
+  // Any message from the user answers (or abandons) the pinned question.
+  on('prompt.submit', async ($, e, next) => {
+    await update($, pending, () => null)
+    return next(e)
   })
 
   // commands/update.md stays as the manual fallback for when this module isn't loaded.
@@ -107,21 +163,25 @@ export const register: Register = on => {
   // Composes with whatever else draws the band (cc-statusline) instead of replacing it.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const below = await next(e)
-    if (e.props.hasSurvey) return below
+    const ask = await read($, pending)
+    if (e.props.hasSurvey || !ask) return below
     const { Box, Text, Button } = $.ui.resolve(e)
-    const ids = await read($, off)
 
     return (
       <Box flexDirection="column">
         {below}
-        <Box flexWrap="wrap">
-          <Text dimColor>vf </Text>
-          {DECISIONS.map(d => (
-            <Button key={`band-${d.id}`} plain onPress={() => setEnabled($, d.id, ids.includes(d.id))}>
-              {ids.includes(d.id) ? <Text dimColor strikethrough>{d.id}</Text> : d.id}{' '}
-            </Button>
-          ))}
-        </Box>
+        <Text bold>❓ {ask.question}</Text>
+        {ask.options.map((o, i) => (
+          <Button key={`ask-${o.id}`} plain hotkey={String(i + 1)} onPress={async () => {
+              await update($, pending, () => null)
+              await $.prompt.submit({ text: o.id, asUser: true })
+            }}>
+            {o.id}
+            {o.recommended ? ' ⭐' : ''} {o.label}
+            {o.detail ? <Text dimColor> ..... {o.detail}</Text> : ''}
+          </Button>
+        ))}
+        <Text dimColor>ctrl+x tab, then a number</Text>
       </Box>
     )
   })
