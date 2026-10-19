@@ -133,7 +133,7 @@ export const register: Register = on => {
 
     return (
       <Box flexDirection="column">
-        <Text dimColor>Unchecked = Claude stops doing it. Saved across sessions.</Text>
+        <Text dimColor>Unchecked = Claude stops doing it. Saved across sessions. ctrl+x tab to focus, then 1-8.</Text>
         {DECISIONS.map((d, i) => (
           <Button key={d.id} plain hotkey={String(i + 1)} onPress={toggle(d.id)}>
             {ids.includes(d.id) ? '[ ]' : '[x]'} {d.label}
