@@ -99,6 +99,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
       props: { hasSurvey: false, isWorking: false, maxRows: 8, bodyColumns: 100, scroll: { offset: 0, bodyRows: 8 }, view: {} },
     })
     expect((await ui.find({ key: 'ask-G2' }))?.text).toContain('User reviews first')
+    expect((await ui.find({ key: 'ask-G1' }))?.props?.autoFocus).toBe(true)
     await ui.press({ key: 'ask-G2' })
     expect(sent).toEqual(['G2'])
     expect(await ui.find({ key: 'ask-G2' })).toBeUndefined()
