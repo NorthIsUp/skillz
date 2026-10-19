@@ -166,22 +166,31 @@ export const register: Register = on => {
     const ask = await read($, pending)
     if (e.props.hasSurvey || !ask) return below
     const { Box, Text, Button } = $.ui.resolve(e)
+    // ctrl+x tab lands on the question, not on whatever else is in the band.
+    const focused = ask.options.find(o => o.recommended) ?? ask.options[0]
 
     return (
       <Box flexDirection="column">
         {below}
-        <Text bold>❓ {ask.question}</Text>
-        {ask.options.map((o, i) => (
-          <Button key={`ask-${o.id}`} plain hotkey={String(i + 1)} onPress={async () => {
-              await update($, pending, () => null)
-              await $.prompt.submit({ text: o.id, asUser: true })
-            }}>
-            {o.id}
-            {o.recommended ? ' ⭐' : ''} {o.label}
-            {o.detail ? <Text dimColor> ..... {o.detail}</Text> : ''}
-          </Button>
-        ))}
-        <Text dimColor>ctrl+x tab, then a number</Text>
+        <Box flexDirection="column" borderStyle="round" paddingX={1}>
+          <Text bold>❓ {ask.question}</Text>
+          {ask.options.map((o, i) => (
+            <Button
+              key={`ask-${o.id}`}
+              plain
+              hotkey={String(i + 1)}
+              {...(o === focused && { autoFocus: true as const })}
+              onPress={async () => {
+                await update($, pending, () => null)
+                await $.prompt.submit({ text: o.id, asUser: true })
+              }}>
+              {o.id}
+              {o.recommended ? ' ⭐' : ''} {o.label}
+              {o.detail ? <Text dimColor> ..... {o.detail}</Text> : ''}
+            </Button>
+          ))}
+          <Text dimColor>ctrl+x tab, then a number</Text>
+        </Box>
       </Box>
     )
   })
