@@ -3,7 +3,7 @@ description: Pull the latest skillz plugins from the marketplace and reload them
 allowed-tools: Bash, SlashCommand
 ---
 
-Fresh copy pulled and installed:
+Manual fallback for `/skillz-update`, which also reloads by itself. Fresh copy pulled and installed:
 
 ```bash
 !claude plugin marketplace update northisup-skillz; for p in skillz tmux-session-resume guarded-worktrees; do claude plugin update "$p@northisup-skillz" 2>&1 | tail -1; done
