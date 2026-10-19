@@ -175,11 +175,10 @@ export const register: Register = on => {
         {below}
         <Box flexDirection="column" borderStyle="round" paddingX={1}>
           <Text bold>❓ {ask.question}</Text>
-          {ask.options.map((o, i) => (
+          {ask.options.map(o => (
             <Button
               key={`ask-${o.id}`}
               plain
-              hotkey={String(i + 1)}
               {...(o === focused && { autoFocus: true as const })}
               onPress={async () => {
                 await update($, pending, () => null)
@@ -190,7 +189,7 @@ export const register: Register = on => {
               {o.detail ? <Text dimColor> ..... {o.detail}</Text> : ''}
             </Button>
           ))}
-          <Text dimColor>ctrl+x tab, then a number</Text>
+          <Text dimColor>ctrl+x tab, arrows, Enter</Text>
         </Box>
       </Box>
     )
