@@ -104,6 +104,28 @@ export const register: Register = on => {
     return { sections: [...result.sections, { id: 'skillz:vf-overrides', text, scope: 'session' }] }
   })
 
+  // Composes with whatever else draws the band (cc-statusline) instead of replacing it.
+  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    const below = await next(e)
+    if (e.props.hasSurvey) return below
+    const { Box, Text, Button } = $.ui.resolve(e)
+    const ids = await read($, off)
+
+    return (
+      <Box flexDirection="column">
+        {below}
+        <Box flexWrap="wrap">
+          <Text dimColor>vf </Text>
+          {DECISIONS.map(d => (
+            <Button key={`band-${d.id}`} plain onPress={() => setEnabled($, d.id, ids.includes(d.id))}>
+              {ids.includes(d.id) ? <Text dimColor strikethrough>{d.id}</Text> : d.id}{' '}
+            </Button>
+          ))}
+        </Box>
+      </Box>
+    )
+  })
+
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const { Box, Text, Button } = $.ui.resolve(e)
     const ids = await read($, off)
