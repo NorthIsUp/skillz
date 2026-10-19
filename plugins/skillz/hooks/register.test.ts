@@ -76,17 +76,31 @@ test('the agent switches a decision off and on with vf_set', async ($, on) => {
 })
 
 for (const surface of ['terminal', 'desktop'] as const) {
-  test(`the band above the prompt toggles a decision (${surface})`, async ($, on) => {
-    on('prompt.compose', async () => ({ sections: [] }))
-    mock.store(on)
+  test(`ask pins the question above the prompt and a press answers it (${surface})`, async ($, on) => {
+    const sent: string[] = []
     on('ui.render', { component: 'AbovePrompt' }, async () => ({ type: 'Box' as const }))
+    on('prompt.submit', async (_$, e) => (sent.push(e.text), { text: e.text }))
+
+    const { result } = await $.tool.call({
+      tool: 'mcp__skillz__ask',
+      question: 'Ship it?',
+      options: [
+        { id: 'G1', label: 'Agent merges now', recommended: true },
+        { id: 'G2', label: 'User reviews first', detail: '+1 day' },
+      ],
+    })
+    expect(String(result)).toContain('│  G1 ⭐  Agent merges now')
+    expect(String(result)).toContain('say **G1** or **G2**')
+
     const ui = await $.ui.mount({
       plugin: 'skillz',
       surface,
       component: 'AbovePrompt',
-      props: { hasSurvey: false, isWorking: false, maxRows: 4, bodyColumns: 100, scroll: { offset: 0, bodyRows: 4 }, view: {} },
+      props: { hasSurvey: false, isWorking: false, maxRows: 8, bodyColumns: 100, scroll: { offset: 0, bodyRows: 8 }, view: {} },
     })
-    await ui.press({ key: 'band-emoji' })
-    expect((await $.prompt.compose(ARGS)).sections[0]?.text).toContain('emoji anchors')
+    expect((await ui.find({ key: 'ask-G2' }))?.text).toContain('User reviews first')
+    await ui.press({ key: 'ask-G2' })
+    expect(sent).toEqual(['G2'])
+    expect(await ui.find({ key: 'ask-G2' })).toBeUndefined()
   })
 }
