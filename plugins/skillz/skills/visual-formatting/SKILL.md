@@ -182,6 +182,24 @@ still pending — not as a block, not as a "still open" recap. Re-ask only when
 the reader sends a message without answering it, or when the options
 changed; then restate it in full, once.
 
+Options name who acts as "Agent" and "User", never "I" and "You". In an
+option list the reader has to work out who is speaking, so "I fix it" and
+"You fix it" read as the same option:
+
+```text
+│  A1  Agent fixes the flaky test ..... ~10 min
+│  A2  User fixes the flaky test ...... Agent moves on
+```
+
+Options name who acts as "Agent" and "User", never "I" and "You". In an
+option list the reader has to work out who is speaking, so "I fix it" and
+"You fix it" read as the same option:
+
+```text
+│  A1  Agent fixes the flaky test ..... ~10 min
+│  A2  User fixes the flaky test ...... Agent moves on
+```
+
 ## Unacceptable: bare option IDs
 
 Every option must be restated in the message that asks for the pick. No
