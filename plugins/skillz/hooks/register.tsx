@@ -146,8 +146,9 @@ export const register: Register = on => {
     // $.command.run is refused from inside this hook, so the reloads start once it has answered.
     void (async () => {
       await $.clock.sleep(0)
-      await $.command.run({ command: 'reload-plugins', args: '' })
       await $.command.run({ command: 'reload-skills', args: '' })
+      // Last: reloading plugins unloads this module, ending this chain.
+      await $.command.run({ command: 'reload-plugins', args: '' })
     })().catch((err: unknown) => $.ui.toast(`skillz: reload failed, run /reload-plugins and /reload-skills (${String(err)})`))
 
     return { text: [...lines, 'Reloading plugins and skills…'].join('\n') }
