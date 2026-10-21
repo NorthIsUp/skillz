@@ -180,11 +180,16 @@ When the `mcp__skillz__ask` tool is available, call it with the same question
 and option IDs as well: it pins the options above the prompt until the reader
 answers. Still print the block in the reply.
 
-Ask a question once. A reply to an agent, teammate, CI or other background
-event is not a turn the reader asked for, so it never re-asks a pick that's
-still pending — not as a block, not as a "still open" recap. Re-ask only when
-the reader sends a message without answering it, or when the options
-changed; then restate it in full, once.
+Ask a question once. An unanswered pick is the reader's call, not a nag
+queue: a "still open" recap on every reply is noise. Never re-ask in a reply
+to an agent, teammate, CI or other background event, and never while the
+question is pinned by `mcp__skillz__ask`. Re-ask only when the options
+changed, when the work it blocks is the next thing to do, or after several
+unanswered turns have gone by — and at most once per question.
+
+A re-ask always opens with one or two sentences on what the decision still
+means: what it unblocks, and what happens if it stays unanswered. Then
+restate the options in full.
 
 Options name who acts as "Agent" and "User", never "I" and "You". In an
 option list the reader has to work out who is speaking, so "I fix it" and
