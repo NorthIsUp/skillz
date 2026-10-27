@@ -28,6 +28,15 @@ next="${major}.${minor}.${patch}"
 tmp=$(mktemp)
 jq --arg v "$next" '.version = $v' "$manifest" >"$tmp" && mv "$tmp" "$manifest"
 
+# Codex caches plugins by version, so its manifest has to move in step.
+codex_manifest="plugins/${name}/.codex-plugin/plugin.json"
+if [[ -f "$codex_manifest" ]]; then
+  tmp=$(mktemp)
+  jq --arg v "$next" '.version = $v' "$codex_manifest" >"$tmp" && mv "$tmp" "$codex_manifest"
+else
+  codex_manifest=
+fi
+
 tmp=$(mktemp)
 jq --arg n "$name" --arg v "$next" \
   '.plugins |= map(if .name == $n then .version = $v else . end)' \
@@ -35,8 +44,9 @@ jq --arg n "$name" --arg v "$next" \
 
 # jq re-expands short arrays that prettier keeps inline, so the pre-commit
 # prettier hook would reject what we just wrote.
-prettier --write "$manifest" "$marketplace" >/dev/null
+prettier --write "$manifest" "$marketplace" ${codex_manifest:+"$codex_manifest"} >/dev/null
 
 echo "${name}: ${current} -> ${next}"
 echo "  ${manifest}"
 echo "  ${marketplace}"
+[[ -z "$codex_manifest" ]] || echo "  ${codex_manifest}"

@@ -58,6 +58,14 @@ fi
 check "other plugins untouched" "9.9.9" "$(ver_market "$d" other)"
 rm -rf "$d"
 
+# a Codex manifest, when present, moves with the Claude one
+d=$(setup)
+mkdir -p "$d/plugins/demo/.codex-plugin"
+echo '{"name":"demo","version":"0.1.16"}' >"$d/plugins/demo/.codex-plugin/plugin.json"
+(cd "$d" && "$bump" demo patch >/dev/null)
+check "patch bumps .codex-plugin/plugin.json" "0.1.17" "$(jq -r .version "$d/plugins/demo/.codex-plugin/plugin.json")"
+rm -rf "$d"
+
 # rejects bad input
 d=$(setup)
 (cd "$d" && "$bump" demo sideways >/dev/null 2>&1) && rc=0 || rc=1

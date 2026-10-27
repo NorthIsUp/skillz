@@ -1,0 +1,20 @@
+{
+  "name": "northisup-skillz",
+  "interface": {
+    "displayName": "NorthIsUp skillz"
+  },
+  "plugins": [
+    {
+      "name": "skillz",
+      "source": { "source": "local", "path": "./plugins/skillz" },
+      "policy": { "installation": "AVAILABLE", "authentication": "ON_INSTALL" },
+      "category": "Productivity"
+    },
+    {
+      "name": "guarded-worktrees",
+      "source": { "source": "local", "path": "./plugins/guarded-worktrees" },
+      "policy": { "installation": "AVAILABLE", "authentication": "ON_INSTALL" },
+      "category": "Productivity"
+    }
+  ]
+}

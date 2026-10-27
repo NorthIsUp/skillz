@@ -37,6 +37,7 @@ git config user.name >/dev/null 2>&1 || git config user.name "github-actions[bot
 git config user.email >/dev/null 2>&1 \
   || git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-git add -A "$marketplace" plugins/*/.claude-plugin/plugin.json
+shopt -s nullglob # not every plugin ships a Codex manifest
+git add -A "$marketplace" plugins/*/.claude-plugin/plugin.json plugins/*/.codex-plugin/plugin.json
 git commit -m "chore(release): auto-bump ${bumped[*]}"
 git push origin "HEAD:${GITHUB_REF_NAME:-main}"
