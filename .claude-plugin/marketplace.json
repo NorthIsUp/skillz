@@ -14,7 +14,7 @@
       "name": "skillz",
       "source": "./plugins/skillz",
       "description": "Personal skills, agents, and commands",
-      "version": "0.2.44",
+      "version": "0.2.45",
       "category": "productivity",
       "tags": ["personal", "skills"]
     },
@@ -30,7 +30,7 @@
       "name": "guarded-worktrees",
       "source": "./plugins/guarded-worktrees",
       "description": "Refuse worktrees on main/master or a local base ref; fetch origin before branching",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "category": "productivity",
       "tags": ["git", "worktree", "hooks"]
     },

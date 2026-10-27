@@ -1,8 +1,11 @@
 {
   "name": "guarded-worktrees",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Refuse worktrees on main/master or a local base ref; fetch origin before branching",
-  "author": { "name": "NorthIsUp", "url": "https://github.com/NorthIsUp" },
+  "author": {
+    "name": "NorthIsUp",
+    "url": "https://github.com/NorthIsUp"
+  },
   "repository": "https://github.com/NorthIsUp/skillz",
   "license": "MIT",
   "hooks": "./hooks/hooks.json"

@@ -1,8 +1,11 @@
 {
   "name": "skillz",
-  "version": "0.2.44",
+  "version": "0.2.45",
   "description": "Adam's personal skills and standing rules",
-  "author": { "name": "NorthIsUp", "url": "https://github.com/NorthIsUp" },
+  "author": {
+    "name": "NorthIsUp",
+    "url": "https://github.com/NorthIsUp"
+  },
   "repository": "https://github.com/NorthIsUp/skillz",
   "license": "MIT",
   "skills": "./skills/",
