@@ -34,6 +34,19 @@ For local dev:
 /plugin install skillz@askclara-skillz
 ```
 
+## Install in Codex
+
+```sh
+codex plugin marketplace add NorthIsUp/skillz
+codex plugin add skillz@northisup-skillz
+codex plugin add guarded-worktrees@northisup-skillz
+```
+
+Then open `/hooks` in Codex and trust the plugin hooks. Codex gets the skills,
+the always-on rules (as session context), option-ID numbering and the
+`--no-verify` block. Agents, slash commands and the `/vf` / `skillz:ask` mod
+are Claude Code only.
+
 ## Day-to-day
 
 ```sh

@@ -30,6 +30,13 @@ for manifest in plugins/*/.claude-plugin/plugin.json; do
     fail=1
     continue
   fi
+  codex_manifest="${manifest%/.claude-plugin/plugin.json}/.codex-plugin/plugin.json"
+  if [[ -f "$codex_manifest" ]] && [[ "$(jq -r '.version // empty' "$codex_manifest")" != "$plugin_version" ]]; then
+    echo "[$name] FAIL: .codex-plugin/plugin.json != plugin.json ($plugin_version)"
+    echo "  run: mise run bump $name patch"
+    fail=1
+    continue
+  fi
   echo "[$name] $plugin_version ok"
 done
 
