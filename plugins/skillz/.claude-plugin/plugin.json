@@ -6,5 +6,13 @@
     "name": "Adam",
     "email": "adam@askclara.com"
   },
-  "types": "./types/index.d.ts"
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "visualFormattingModule": {
+      "type": "boolean",
+      "title": "Visual formatting module",
+      "description": "Pin question options above the prompt (ask tool), the /vf checklist and the vf_set tool. Off: the visual-formatting skill still works as plain chat text.",
+      "default": false
+    }
+  }
 }
