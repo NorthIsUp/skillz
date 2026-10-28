@@ -10,7 +10,7 @@ You are a **Task subagent**. The parent agent already collected git output and c
 ## Rubric
 
 1. Load the `thermo-nuclear-code-quality-review` skill (shipped in the skillz plugin) and treat its `SKILL.md` as the **complete** rubric — tone, approval bar, output ordering, code-judo / 1k-line / spaghetti rules.
-2. Load the `ruthless-*` skills its "Stack Rules" table names for the files in the diff, and check the diff against them.
+2. Required: load `ruthless-comments` and the `ruthless-*` skills its "Apply the `ruthless-*` Skills" table names for the diff, check the diff against them, and cite skill and rule in each finding. No APPROVE while an applicable violation stands without an explicitly authorized exception.
 3. If the thermo-nuclear skill is not available, fall back to a harsh maintainability audit aligned with that skill's intent: ambitious simplification, no unjustified file sprawl past ~1k lines, no ad-hoc branching growth, explicit types and boundaries, canonical layers.
 
 ## Work
