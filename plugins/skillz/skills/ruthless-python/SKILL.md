@@ -26,7 +26,7 @@ to cases the rule doesn't literally cover.
 - **Rule 2a — `cast` and suppression comments need the user's approval.** `cast(...)`, `# type: ignore`, `# pyright: ignore[...]`, and `# ty: ignore[...]` assert something the checker could not prove, so they are a last resort, not a fix. First exhaust the honest routes: narrowing (`isinstance`, `match`, `assert`, `TypeGuard`/`TypeIs`), a correct annotation or generic, pydantic validation at the boundary, official stubs, a local stub, or an upstream stub fix. If one is still needed, stop and ask the user, naming the exact diagnostic and what you tried. An agent never grants itself this. Once approved, keep it to one place (a single typed helper rather than 15 call sites), name the rule it silences, and give it a one-line reason. Configure both checkers to error on an unused suppression, so a stale one can't outlive its cause.
 - **Rule 3 — Never return `list[Any]` or `dict[str, Any]`.** That's a missing type, not a type. Define a pydantic model (or a `TypedDict`) and return that. See `references/typing.md`.
 - **Rule 4 — Pydantic first for data with shape or boundaries.** Structured data is a `pydantic.BaseModel`, both at I/O boundaries (HTTP, queue, file, LLM tool call, config) and for internal value objects. A wrapped list, dict, or scalar is a `RootModel[T]`. Use `@dataclass` only where pydantic isn't a dependency. JSON input is parsed straight into its model with `Model.model_validate_json(raw)`, never `json.loads` followed by dict access. Plain dicts are not a data model. See `references/pydantic.md`.
-- **Rule 5 — Methods live on the model, not in utility modules.** If a function's first argument is a `User`, it's a method on `User`. Don't write `def _normalize_email(user: User) -> str` in a `helpers.py`; write `User.normalize_email(self) -> str`. Behavior belongs with the data it operates on. Reasons it matters:
+- **Rule 5 — Methods live on the model, not in utility modules.** Behavior on an existing model belongs on that model; construction of another model belongs on the resulting model. Don't write `def _normalize_email(user: User) -> str` in a `helpers.py`; write `User.normalize_email(self) -> str`. Behavior belongs with the data it operates on. Reasons it matters:
   - Discoverability: `user.<TAB>` shows what a `User` can do; grepping `helpers.py` does not.
   - Refactor safety: renaming the field updates call sites via the type checker; loose utility functions silently rot.
   - Polymorphism: subclasses / discriminated unions can override; free functions can't.
@@ -51,9 +51,16 @@ to cases the rule doesn't literally cover.
   class Token(BaseModel):
       def is_expired(self) -> bool: ...
 
-  class User(BaseModel):
-      def to_row(self) -> UserRow: ...
+  class UserRow(BaseModel):
+      @classmethod
+      def from_user(cls, user: User) -> Self: ...
   ```
+
+- **Rule 5a — Construction belongs to the resulting model.** When a function parses, normalizes, groups, or summarizes inputs into a model, make it a named `@classmethod` on the model it returns: `Source.from_record(...)`, `Review.from_sources(...)`, `ReviewList.from_records(...)`. Use instance methods for behavior on an existing instance; use collection models for behavior requiring the whole collection. Choose ownership by the invariant being enforced and the result being constructed, not merely the first argument's type.
+
+  Reuse existing canonical models and schemas before introducing another representation. Derive unchanged fields through the framework's supported schema mechanism, with an explicit field allowlist at API boundaries. Declare only genuinely additional or transformed fields. Keep database querying in the model's manager/queryset and transport concerns in thin handlers; pure constructors should not fetch their own inputs.
+
+  Moving a free function into a class is insufficient if it still duplicates an existing domain rule. Find the canonical owner and consolidate the implementation there.
 
 - **Rule 6 —** `match` **over** `isinstance` **chains.** Pattern matching declares the _shape_ of the data; an `isinstance` ladder hides it in imperative branches. Convert any three-arm `isinstance` chain. Use `assert_never(x)` in the catch-all so the type checker flags missing variants.
 
