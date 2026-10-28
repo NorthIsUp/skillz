@@ -42,6 +42,19 @@ the chaining removed.
 Route handlers stay thin — a handler that does more than call one of the
 three and return its result has business logic in the wrong file.
 
+**Keep views with the domain they expose.** HTTP views and Ninja routers
+belong in the app that owns the models and behavior they expose. API
+version packages compose routers, authentication, and transport
+configuration; a URL prefix does not determine domain ownership. Follow
+the app's existing module layout before creating another package.
+
+**Move the whole feature.** An ownership refactor includes its tests,
+fixtures, imports, route registration, and test discovery. Tests follow
+the code they exercise; shared fixtures live with their owning domain.
+Before calling the move complete, check for stale references and run the
+tests from their new location. Moving implementation while leaving its
+tests in the old app is an incomplete refactor.
+
 ## Fat models, fat managers
 
 Behavior lives with the data. A model owns the logic about one instance;
@@ -204,6 +217,14 @@ hand-written `Schema` is for input shapes the model doesn't have.
 Computed values (`total` above) resolve from a model property or an
 annotated queryset — never a per-row loop in serialization.
 
+**Reuse canonical schemas in Ninja.** Before adding an API response
+schema, look for an existing domain schema or database-view model. Return
+an existing compatible schema directly; otherwise derive a `ModelSchema`
+with an explicit field allowlist. Declare only additional or transformed
+fields. Do not introduce a version-specific `schemas.py` that restates
+the domain's fields, types, or normalization rules. A separate transport
+schema needs a concrete contract difference.
+
 A schema is the wire contract, nothing more. Business rules ride on the
 model or the service; validators enforce shape (ranges, formats, field
 interdependence), not policy that needs a database read.
@@ -244,29 +265,33 @@ signal is untraceable at 3am.
 
 ## Reject on sight
 
-| Smell                                          | Replace with                                           |
-| ---------------------------------------------- | ------------------------------------------------------ |
-| Logic in a view, handler, or schema            | A model method, manager method, or service             |
-| `def f(order_id, ...)` in a service module     | `Order.objects.f(...)` or an `Order` method            |
-| Manager method touching a model it doesn't own | A service                                              |
-| The same `.filter(...)` at two call sites      | A queryset method on the manager                       |
-| Business logic in `save()`                     | A service — bulk paths skip `save()` entirely          |
-| Validation only in `clean()`                   | A `CheckConstraint` too, if the DB can express it      |
-| `.save()` in a service with no `full_clean()`  | `obj.full_clean()` first — it's what runs `clean()`    |
-| Sync `.get()` / `.save()` in a request path    | `await obj.arefresh_from_db()`, `aget`, `asave`        |
-| `sync_to_async` with no comment justifying it  | The `a`-prefixed ORM method                            |
-| Recomputing a derived value twice per instance | `cached_property` (or the asyncstdlib one)             |
-| `Model.objects.all()` in a list route          | A paginated selector                                   |
-| Missing `select_related` / `prefetch_related`  | The right one, plus `assertNumQueries`                 |
-| Signal for same-app logic                      | Direct service call                                    |
-| Secret in `settings.py`                        | Environment variable read in `settings/base.py`        |
-| `cache.set(key, model_instance)`               | A versioned pydantic schema, `.model_dump_json()`      |
-| Pickled blob in a `BinaryField`                | A `JSONField` holding a versioned schema               |
-| Model instance as a Celery task argument       | Its pk; refetch in the task                            |
-| Raw SQL with f-string interpolation            | Parameterized `.raw()` / `cursor.execute(sql, params)` |
-| DRF serializer or `ViewSet`                    | `ninja.Schema` / `ModelSchema` + a `Router`            |
-| `SerializerMethodField`, `to_representation`   | A pydantic computed field or model property            |
-| Hand-rolled dict building in a handler         | A `Schema` — it's a pydantic model, let it serialize   |
+| Smell                                             | Replace with                                           |
+| ------------------------------------------------- | ------------------------------------------------------ |
+| Domain views placed in a generic API app          | Router in the owning domain; central API composes it   |
+| Implementation moved, tests left behind           | Code, tests, fixtures, and discovery moved together    |
+| Ninja schema repeating an existing domain schema  | Reuse the schema directly                              |
+| Response fields copied from a database-view model | Allowlisted `ModelSchema` plus explicit additions      |
+| Logic in a view, handler, or schema               | A model method, manager method, or service             |
+| `def f(order_id, ...)` in a service module        | `Order.objects.f(...)` or an `Order` method            |
+| Manager method touching a model it doesn't own    | A service                                              |
+| The same `.filter(...)` at two call sites         | A queryset method on the manager                       |
+| Business logic in `save()`                        | A service — bulk paths skip `save()` entirely          |
+| Validation only in `clean()`                      | A `CheckConstraint` too, if the DB can express it      |
+| `.save()` in a service with no `full_clean()`     | `obj.full_clean()` first — it's what runs `clean()`    |
+| Sync `.get()` / `.save()` in a request path       | `await obj.arefresh_from_db()`, `aget`, `asave`        |
+| `sync_to_async` with no comment justifying it     | The `a`-prefixed ORM method                            |
+| Recomputing a derived value twice per instance    | `cached_property` (or the asyncstdlib one)             |
+| `Model.objects.all()` in a list route             | A paginated selector                                   |
+| Missing `select_related` / `prefetch_related`     | The right one, plus `assertNumQueries`                 |
+| Signal for same-app logic                         | Direct service call                                    |
+| Secret in `settings.py`                           | Environment variable read in `settings/base.py`        |
+| `cache.set(key, model_instance)`                  | A versioned pydantic schema, `.model_dump_json()`      |
+| Pickled blob in a `BinaryField`                   | A `JSONField` holding a versioned schema               |
+| Model instance as a Celery task argument          | Its pk; refetch in the task                            |
+| Raw SQL with f-string interpolation               | Parameterized `.raw()` / `cursor.execute(sql, params)` |
+| DRF serializer or `ViewSet`                       | `ninja.Schema` / `ModelSchema` + a `Router`            |
+| `SerializerMethodField`, `to_representation`      | A pydantic computed field or model property            |
+| Hand-rolled dict building in a handler            | A `Schema` — it's a pydantic model, let it serialize   |
 
 Migrations get read before merge — a migration is a production
 statement, not a generated artifact.
