@@ -14,7 +14,7 @@
       "name": "skillz",
       "source": "./plugins/skillz",
       "description": "Personal skills, agents, and commands",
-      "version": "0.2.48",
+      "version": "0.2.49",
       "category": "productivity",
       "tags": ["personal", "skills"]
     },
