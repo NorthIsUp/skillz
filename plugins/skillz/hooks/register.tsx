@@ -58,11 +58,15 @@ const setEnabled = async ($: EngineInterface, id: string, enabled: boolean) => {
 export const checklist = (ids: readonly string[]) =>
   DECISIONS.map((d, i) => `${i + 1}. ${ids.includes(d.id) ? '[ ]' : '[x]'} ${d.label}`).join('\n')
 
-export const register: Register = on => {
+export const register: Register = (on, options) => {
+  // Opt-in: off, only /skillz-update loads and the skill falls back to chat text.
+  const vf = options.visualFormattingModule === true
+
   on('session.start', async ($, e, next) => {
+    await $.command.register({ name: 'skillz-update', description: 'Update skillz plugins, then reload plugins and skills' })
+    if (!vf) return next(e)
     const saved = await $.store.get(STORE_KEY)
     if (Array.isArray(saved)) await update($, off, () => saved.filter(x => typeof x === 'string'))
-    await $.command.register({ name: 'skillz-update', description: 'Update skillz plugins, then reload plugins and skills' })
     await $.tool.register({
       name: 'vf_set',
       isDeferred: false,
@@ -109,6 +113,30 @@ export const register: Register = on => {
     return next(e)
   })
 
+  // commands/update.md stays as the manual fallback for when this module isn't loaded.
+  on('command.run', { command: 'skillz-update' }, async $ => {
+    const minutes = { timeoutMs: 180_000 }
+    const market = await $.process.run(['claude', 'plugin', 'marketplace', 'update', MARKETPLACE], minutes)
+    if (market.exitCode !== 0) return { text: `Marketplace update failed:\n${lastLine(market.stderr || market.stdout)}` }
+
+    const lines: string[] = []
+    for (const p of PLUGINS) {
+      const r = await $.process.run(['claude', 'plugin', 'update', `${p}@${MARKETPLACE}`], minutes)
+      lines.push(`${p}: ${lastLine(r.stdout || r.stderr)}`)
+    }
+    // $.command.run is refused from inside this hook, so the reloads start once it has answered.
+    void (async () => {
+      await $.clock.sleep(0)
+      await $.command.run({ command: 'reload-skills', args: '' })
+      // Last: reloading plugins unloads this module, ending this chain.
+      await $.command.run({ command: 'reload-plugins', args: '' })
+    })().catch((err: unknown) => $.ui.toast(`skillz: reload failed, run /reload-plugins and /reload-skills (${String(err)})`))
+
+    return { text: [...lines, 'Reloading plugins and skills…'].join('\n') }
+  })
+
+  if (!vf) return
+
   on('command.run', { command: 'vf' }, async $ => {
     await $.ui.open({ id: PANE, title: 'Visual formatting', focus: true, closeOnEscape: true })
     // shortcut: chat text is read-only, toggling happens in the pane; drop once the pane is trusted
@@ -134,28 +162,6 @@ export const register: Register = on => {
     const ask = await read($, pending)
     if (ask && answers(ask, e.text)) await update($, pending, () => null)
     return next(e)
-  })
-
-  // commands/update.md stays as the manual fallback for when this module isn't loaded.
-  on('command.run', { command: 'skillz-update' }, async $ => {
-    const minutes = { timeoutMs: 180_000 }
-    const market = await $.process.run(['claude', 'plugin', 'marketplace', 'update', MARKETPLACE], minutes)
-    if (market.exitCode !== 0) return { text: `Marketplace update failed:\n${lastLine(market.stderr || market.stdout)}` }
-
-    const lines: string[] = []
-    for (const p of PLUGINS) {
-      const r = await $.process.run(['claude', 'plugin', 'update', `${p}@${MARKETPLACE}`], minutes)
-      lines.push(`${p}: ${lastLine(r.stdout || r.stderr)}`)
-    }
-    // $.command.run is refused from inside this hook, so the reloads start once it has answered.
-    void (async () => {
-      await $.clock.sleep(0)
-      await $.command.run({ command: 'reload-skills', args: '' })
-      // Last: reloading plugins unloads this module, ending this chain.
-      await $.command.run({ command: 'reload-plugins', args: '' })
-    })().catch((err: unknown) => $.ui.toast(`skillz: reload failed, run /reload-plugins and /reload-skills (${String(err)})`))
-
-    return { text: [...lines, 'Reloading plugins and skills…'].join('\n') }
   })
 
   on('prompt.compose', async ($, e, next) => {

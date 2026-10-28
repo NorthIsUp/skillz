@@ -2,10 +2,12 @@ import { expect, mock, test } from 'claude-code/testing'
 
 import { answers, checklist } from './register'
 
+const ON = { options: { visualFormattingModule: true } }
+
 const ARGS = { model: 'claude-opus-5-5', promptModel: 'claude-opus-5-5', outputStyle: null, tools: [], surfaces: [], traits: [] }
 
 for (const surface of ['terminal', 'desktop'] as const) {
-  test(`unchecking a box adds an override section (${surface})`, async ($, on) => {
+  test(`unchecking a box adds an override section (${surface})`, ON, async ($, on) => {
     on('prompt.compose', async () => ({ sections: [] }))
     mock.store(on)
     expect((await $.prompt.compose(ARGS)).sections).toEqual([])
@@ -63,7 +65,7 @@ test('skillz-update updates every plugin then queues both reloads', async ($, on
   expect(ran).toEqual(['reload-skills', 'reload-plugins'])
 })
 
-test('the agent switches a decision off and on with vf_set', async ($, on) => {
+test('the agent switches a decision off and on with vf_set', ON, async ($, on) => {
   on('prompt.compose', async () => ({ sections: [] }))
   mock.store(on)
   const offCall = await $.tool.call({ tool: 'mcp__skillz__vf_set', id: 'boxes', enabled: false })
@@ -76,7 +78,7 @@ test('the agent switches a decision off and on with vf_set', async ($, on) => {
 })
 
 for (const surface of ['terminal', 'desktop'] as const) {
-  test(`ask pins the question above the prompt and a press answers it (${surface})`, async ($, on) => {
+  test(`ask pins the question above the prompt and a press answers it (${surface})`, ON, async ($, on) => {
     const sent: string[] = []
     on('ui.render', { component: 'AbovePrompt' }, async () => ({ type: 'Box' as const }))
     on('prompt.submit', async (_$, e) => (sent.push(e.text), { text: e.text }))
@@ -115,4 +117,15 @@ test('only a message naming an option id answers the pinned question', () => {
   const nested = { question: 'q', options: [{ id: 'AA1.1', label: 'a' }, { id: 'AA1.2', label: 'b' }] }
   expect(answers(nested, 'AA1.2')).toBe(true)
   expect(answers(nested, 'AA1x1')).toBe(false)
+})
+
+test('the visual-formatting module is off by default', async ($, on) => {
+  on('prompt.compose', async () => ({ sections: [] }))
+  on('tool.call', async () => ({ deny: 'not registered' }))
+  mock.store(on)
+  const vfSet = await $.tool.call({ tool: 'mcp__skillz__vf_set', id: 'done', enabled: false })
+  expect(String(vfSet.result)).not.toContain('[ ]')
+  expect((await $.prompt.compose(ARGS)).sections).toEqual([])
+  const { result } = await $.tool.call({ tool: 'mcp__skillz__ask', question: 'q', options: [{ id: 'K1', label: 'a' }, { id: 'K2', label: 'b' }] })
+  expect(String(result)).not.toContain('╭')
 })
