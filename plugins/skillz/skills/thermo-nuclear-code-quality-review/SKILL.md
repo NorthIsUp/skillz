@@ -67,22 +67,26 @@ Apply the baseline prompt above, plus these explicit review rules:
    - If related updates can leave state half-applied, push for a more atomic structure.
    - Do not over-index on micro-optimizations, but do flag avoidable orchestration complexity that makes the implementation more brittle.
 
-## Stack Rules: the `ruthless-*` Skills
+## Required Step: Apply the `ruthless-*` Skills
 
-The rules below are stack-agnostic. The `ruthless-*` skills hold the per-stack bar. Before reviewing, load every one whose trigger the diff hits, and walk the diff against it as part of this review:
+The rules above are stack-agnostic. The `ruthless-*` skills hold the per-stack bar, and applying them is not optional. Before reviewing, load `ruthless-comments` and every language/framework skill the diff hits:
 
 | The diff touches                                                                             | Load                                       |
 | -------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| anything                                                                                     | `ruthless-comments`                        |
 | any `.py` file                                                                               | `ruthless-python`                          |
 | Django code: models, managers, views, ninja schemas, signals, migrations                     | `ruthless-django` (plus `ruthless-python`) |
 | `.swift`, `Package.swift`, `project.yml`                                                     | `ruthless-swift`                           |
 | signing, entitlements, `ExportOptions*.plist`, TestFlight / App Store workflows, ASC scripts | `ruthless-appstore`                        |
-| code comments, docstrings, README or doc text                                                | `ruthless-comments`                        |
+| a stack with another `ruthless-*` skill                                                      | that skill                                 |
 
-- Each skill's "reject on sight" / anti-pattern table is a checklist: every hit in the diff is a finding.
-- Cite the rule the way that skill's "Reviewing" section says (`Rule 3: ...`), quote the line, give the replacement.
-- Don't restate a skill's rules here or in the review. Name the rule and let the skill carry the reason.
-- If a skill is not available, say which one was skipped in the review instead of approximating it.
+- Evaluate the implementation against each loaded skill's rules explicitly, not only its reject-on-sight table. Check these every time:
+  - domain ownership
+  - constructor placement
+  - canonical schema reuse
+  - complete relocation of tests and fixtures when code moves
+- Cite the skill and rule in every finding (`ruthless-python Rule 3: ...`), quote the line, give the replacement. Don't restate the rule's reasoning: the skill carries it.
+- If a skill can't be loaded, name it in the review as skipped. Don't approximate it.
 
 ## Primary Review Questions
 
@@ -194,7 +198,6 @@ The bar for approval is:
 - no obviously hacky or magical abstraction that makes the code harder to reason about
 - no unnecessary wrapper/cast/optionality churn obscuring the real design
 - no clear architecture-boundary leak or avoidable canonical-helper duplication
-- no hit from a loaded `ruthless-*` skill's reject-on-sight / anti-pattern table
 - no missed opportunity for an obvious decomposition that would materially improve maintainability
 
 Treat these as presumptive blockers unless the author can justify them clearly:
@@ -205,6 +208,7 @@ Treat these as presumptive blockers unless the author can justify them clearly:
 - the PR solves a local problem by scattering feature checks across shared code
 - the PR adds an unnecessary abstraction, wrapper, or cast-heavy contract that makes the design more indirect
 - the PR duplicates an existing helper or puts logic in the wrong layer when there is a clear canonical home
-- the PR hits a reject-on-sight row of a `ruthless-*` skill that covers the files it touches
+
+A review cannot conclude APPROVE while an applicable `ruthless-*` violation is unaddressed, unless it has an explicitly authorized exception. That is a hard blocker, not a presumptive one: the author's justification alone does not clear it.
 
 If those conditions are not met, leave explicit, actionable feedback and push for a cleaner decomposition.
