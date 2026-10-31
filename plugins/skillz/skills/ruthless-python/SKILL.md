@@ -123,6 +123,20 @@ to cases the rule doesn't literally cover.
   - Datetimes are timezone-aware (`datetime.now(UTC)`, never `utcnow()`); a naive one needs a comment saying whose clock it is.
   - If an int or str is required for API compatibility, the name carries the unit (`datetime_iso`, `epoch_ts`, `epoch_ms`, `timeout_seconds`, `ttl_ms`).
 
+- **Rule 12 — Multiline strings with visual layout use `inspect.cleandoc`.** SQL, code you `exec`/`eval` or template out, prompts, help text: anything a reader scans as a block. `cleandoc` lets the literal sit at the code's own indent and strips the leading newline, the trailing whitespace line and the common indent, so the source reads like the output. `textwrap.dedent` leaves the first and last blank lines in; flush-left literals break the code's shape.
+
+  ```python
+  from inspect import cleandoc
+
+  QUERY = cleandoc("""
+      SELECT id, email
+      FROM users
+      WHERE created_at > %(since)s
+  """)
+  ```
+
+  One-line strings and strings whose whitespace is the data (fixtures, golden output) stay as they are.
+
 ## Library defaults
 
 Reach for these first; don't introduce alternatives without a reason:
@@ -225,6 +239,7 @@ See `references/pydantic.md` for model factory patterns.
 | `timeout: int` / `ttl: int` (unit only in docs)         | `timeout: timedelta`; `timeout_seconds` at an API              |
 | `created_at: str` / epoch `int` on a model              | `created_at: datetime` (tz-aware)                              |
 | `datetime.utcnow()`                                     | `datetime.now(UTC)`                                            |
+| Flush-left `"""` SQL/code block, or `textwrap.dedent`   | `inspect.cleandoc(""" ... """)` at the code's indent (Rule 12) |
 | Stored blob with no version field                       | A `v: Literal[N]` on the model                                 |
 
 ## Reviewing Python (PRs, diffs)
