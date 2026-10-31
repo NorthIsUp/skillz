@@ -271,7 +271,7 @@ The staging-persona plan is now recorded as a TODO in …/TODO.md, pushed to
 ╔═════════════════════════════
 ║  📋 where things stand
 ╟─────────────────────────────
-║  🔀 #3128 OPEN · 729802efa · CI restarted · claw:ignore until green
+║  🔀 #3128 OPEN · 729802efa · CI restarted · errandd:ignore until green
 ║     ✅ Y1 · R5/R6 · bot review fixes · medallion TODO
 
 ⏳ The #3128 agent is now waiting on CI for 729802efa. When that's green, …
@@ -311,7 +311,7 @@ The same content, done right:
 ║
 ║ ⏳ in progress
 ║   🧪 CI on 729802efa ...... running
-║   🆙 on green ............. swap claw:ignore → claw:babysit
+║   🆙 on green ............. swap errandd:ignore → errandd:babysit
 ╚════════════════════════════════════════════════════════
 
 ╭────────────────────────────────────────
