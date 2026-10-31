@@ -32,8 +32,8 @@ Then remove `statusLine` from `~/.claude/settings.json`, or both will draw.
 Sections above the `right side` row go on the left of the line, the rest on
 the right; move that row to rebalance. Each change is written straight to
 `[layout] left/right` in `~/.config/cc-statusbar/config.toml` (other lines
-are kept), so the line updates within 2s. Click the list first if the
-arrows don't reach it.
+are kept), so the line updates within 2s. ↑↓ work as soon as the pane opens;
+space/enter and ←→ need one click on the list first.
 
 ## Gaps
 

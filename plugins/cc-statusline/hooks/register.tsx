@@ -1,12 +1,12 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { Span } from '../types'
+import type { Menu, Span } from '../types'
 import { parseAnsi } from './ansi'
-import { menuFrom, readLayout, writeLayout } from './layout'
-import type { Layout } from './layout'
+import { inView, layoutOf, menuFrom, moveBy, press, readLayout, writeLayout } from './layout'
 
 const lines = atom({ plugin: 'cc-statusline', key: 'lines' } as const, [] as Span[][])
+const menu = atom({ plugin: 'cc-statusline', key: 'menu' } as const, null as Menu | null)
 
 const TICK_MS = 2000
 const PANE = 'cc-statusline-config'
@@ -28,9 +28,19 @@ async function readConfig($: EngineInterface): Promise<string> {
   }
 }
 
-const isLayout = (v: unknown): v is Layout => {
-  const names = (x: unknown) => Array.isArray(x) && x.every(n => typeof n === 'string')
-  return typeof v === 'object' && v !== null && names((v as Layout).left) && names((v as Layout).right)
+
+async function apply($: EngineInterface, height: number, change: (m: Menu) => Menu) {
+  const before = (await read($, menu)) ?? menuFrom(readLayout(await readConfig($)))
+  const after = inView(change(before), height)
+  if (after === before) return
+  await update($, menu, () => after)
+  if (after.rows === before.rows) return
+  // Every change saves at once, so the band shows it on the next tick.
+  try {
+    await $.fs.write(await configPath($), writeLayout(await readConfig($), layoutOf(after)))
+  } catch (err) {
+    $.ui.toast(`cc-statusline: could not save the layout (${String(err)})`)
+  }
 }
 
 // $.session.model() is the id; the status line shows the display name.
@@ -106,31 +116,45 @@ export const register: Register = on => {
     return next(e)
   })
 
+  // The menu's visible rows: the pane body less the hint line.
+  let height = 10
+
   on('command.run', { command: COMMAND }, async $ => {
+    const fresh = menuFrom(readLayout(await readConfig($)))
+    await update($, menu, () => fresh)
     await $.ui.open({ id: PANE, title: 'Status line sections', focus: true, closeOnEscape: true })
-    await $.ui.focus({ requestId: PANE, key: 'menu' })
+    await $.ui.scroll({ in: PANE, to: { key: 'menu' }, block: 'start' })
     return { text: 'Status line sections opened.' }
   })
 
-  // Client, the one element that takes raw arrow keys, is terminal-only.
+  // Client is terminal-only; it draws the rows and forwards keys after a click.
   on('ui.render', { component: 'Pane', requestId: PANE, surface: 'terminal' }, async ($, e) => {
-    const { Box, Client } = $.ui.resolve(e)
-    const { rows } = menuFrom(readLayout(await readConfig($)))
+    height = Math.max(1, e.props.scroll.bodyRows - 1)
+    const { Box, Client, Text } = $.ui.resolve(e)
+    const m = (await read($, menu)) ?? menuFrom(readLayout(await readConfig($)))
+    // A blank row either side keeps the body scrollable both ways, so the
+    // engine raises ui.scroll for the arrows; it only does when it can move.
     return (
       <Box flexDirection="column">
-        <Client key="menu" module="./menu.tsx" props={{ rows }} />
+        <Text> </Text>
+        <Client key="menu" module="./menu.tsx" props={{ ...inView(m, height), height }} />
+        <Text> </Text>
       </Box>
     )
   })
 
-  // Every change saves at once, so the band shows it on the next tick.
+  // The person's arrows, wheel and page keys move the cursor; the window stays
+  // pinned one row down, past the top pad. The mod's own pin scroll passes.
+  on('ui.scroll', { requestId: PANE }, async ($, e, next) => {
+    if (e.origin.kind !== 'person') return next(e)
+    await apply($, height, m => moveBy(m, e.by))
+    return next({ ...e, offset: 1 })
+  })
+
   on('ui.message', async ($, e, next) => {
-    if (e.requestId !== PANE || !isLayout(e.data)) return next(e)
-    try {
-      await $.fs.write(await configPath($), writeLayout(await readConfig($), e.data))
-    } catch (err) {
-      $.ui.toast(`cc-statusline: could not save the layout (${String(err)})`)
-    }
+    const key = (e.data as { key?: unknown } | null)?.key
+    if (e.requestId !== PANE || typeof key !== 'string') return next(e)
+    await apply($, height, m => press(m, key))
     return {}
   })
 

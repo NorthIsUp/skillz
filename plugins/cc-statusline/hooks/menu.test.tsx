@@ -42,3 +42,4 @@ test('keys in the menu save the new order to config.toml', async ($, on) => {
   expect(writes).toHaveLength(2)
   await ui.unmount()
 })
+
