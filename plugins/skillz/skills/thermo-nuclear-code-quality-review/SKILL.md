@@ -67,25 +67,25 @@ Apply the baseline prompt above, plus these explicit review rules:
    - If related updates can leave state half-applied, push for a more atomic structure.
    - Do not over-index on micro-optimizations, but do flag avoidable orchestration complexity that makes the implementation more brittle.
 
-## Required Step: Apply the `ruthless-*` Skills
+## Required Step: Apply the `skillz:ruthless-*` Skills
 
-The rules above are stack-agnostic. The `ruthless-*` skills hold the per-stack bar, and applying them is not optional. Before reviewing, load `ruthless-comments` and every language/framework skill the diff hits:
+The rules above are stack-agnostic. The `skillz:ruthless-*` skills hold the per-stack bar, and applying them is not optional. Before reviewing, load `skillz:ruthless-comments` and every language/framework skill the diff hits:
 
-| The diff touches                                                                             | Load                                       |
-| -------------------------------------------------------------------------------------------- | ------------------------------------------ |
-| anything                                                                                     | `ruthless-comments`                        |
-| any `.py` file                                                                               | `ruthless-python`                          |
-| Django code: models, managers, views, ninja schemas, signals, migrations                     | `ruthless-django` (plus `ruthless-python`) |
-| `.swift`, `Package.swift`, `project.yml`                                                     | `ruthless-swift`                           |
-| signing, entitlements, `ExportOptions*.plist`, TestFlight / App Store workflows, ASC scripts | `ruthless-appstore`                        |
-| a stack with another `ruthless-*` skill                                                      | that skill                                 |
+| The diff touches                                                                             | Load                                                     |
+| -------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| anything                                                                                     | `skillz:ruthless-comments`                               |
+| any `.py` file                                                                               | `skillz:ruthless-python`                                 |
+| Django code: models, managers, views, ninja schemas, signals, migrations                     | `skillz:ruthless-django` (plus `skillz:ruthless-python`) |
+| `.swift`, `Package.swift`, `project.yml`                                                     | `skillz:ruthless-swift`                                  |
+| signing, entitlements, `ExportOptions*.plist`, TestFlight / App Store workflows, ASC scripts | `skillz:ruthless-appstore`                               |
+| a stack with another `skillz:ruthless-*` skill                                               | that skill                                               |
 
 - Evaluate the implementation against each loaded skill's rules explicitly, not only its reject-on-sight table. Check these every time:
   - domain ownership
   - constructor placement
   - canonical schema reuse
   - complete relocation of tests and fixtures when code moves
-- Cite the skill and rule in every finding (`ruthless-python Rule 3: ...`), quote the line, give the replacement. Don't restate the rule's reasoning: the skill carries it.
+- Cite the skill and rule in every finding (`skillz:ruthless-python Rule 3: ...`), quote the line, give the replacement. Don't restate the rule's reasoning: the skill carries it.
 - If a skill can't be loaded, name it in the review as skipped. Don't approximate it.
 
 ## Primary Review Questions
@@ -178,7 +178,7 @@ Prioritize findings in this order:
 1. Structural code-quality regressions
 2. Missed opportunities for dramatic simplification / code-judo restructuring
 3. Spaghetti / branching complexity increases
-4. Boundary / abstraction / type-contract problems that make the code harder to reason about, and `ruthless-*` bar violations
+4. Boundary / abstraction / type-contract problems that make the code harder to reason about, and `skillz:ruthless-*` bar violations
 5. File-size and decomposition concerns
 6. Modularity and abstraction issues
 7. Legibility and maintainability concerns
@@ -209,6 +209,6 @@ Treat these as presumptive blockers unless the author can justify them clearly:
 - the PR adds an unnecessary abstraction, wrapper, or cast-heavy contract that makes the design more indirect
 - the PR duplicates an existing helper or puts logic in the wrong layer when there is a clear canonical home
 
-A review cannot conclude APPROVE while an applicable `ruthless-*` violation is unaddressed, unless it has an explicitly authorized exception. That is a hard blocker, not a presumptive one: the author's justification alone does not clear it.
+A review cannot conclude APPROVE while an applicable `skillz:ruthless-*` violation is unaddressed, unless it has an explicitly authorized exception. That is a hard blocker, not a presumptive one: the author's justification alone does not clear it.
 
 If those conditions are not met, leave explicit, actionable feedback and push for a cleaner decomposition.
