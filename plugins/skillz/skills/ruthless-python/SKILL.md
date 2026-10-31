@@ -167,8 +167,11 @@ Template defaults that sit below this bar; fix them in a new project:
 
 - Layout: tests live next to source as `test_*.py`, or in a parallel `tests/` tree mirroring the package.
 - One behavior per test. The name says what it asserts: `test_user_create_rejects_empty_email`.
+- **Tests tell direct stories of the user journey they exercise.** Keep the meaningful setup, action, and outcome visible; use helpers to remove mechanical repetition without hiding the behavior or assertions under test.
+- **Every test must have a plain-English docstring.** Describe the human purpose, the setup and context of the situation, and the expected outcome. Explain why the scenario matters to a user; do not merely restate the test name or implementation steps.
+- **Check test reuse before deleting a production helper.** A private helper that is redundant in production may still belong in a test file. Inspect its test callers and move it into test support when it makes the tests DRY and keeps their user journeys clear. Do not expand repeated setup or orchestration inline merely to remove a helper; keep production behavior in its production owner and assertions visible in the tests.
 - Async: `@pytest.mark.anyio` on async tests; parametrize the backend if the code is supposed to work under both asyncio and trio.
-- Fixtures: a test-file helper that builds and returns a domain object is a fixture, not a private function. `_make_user(...) -> User` becomes a `@pytest.fixture` returning the factory, so it composes with the fixtures it needs (`db`, `settings`, a stub clock) and a `conftest.py` can override it per package:
+- Fixtures: use a fixture or factory fixture for test-data construction and dependency setup. Test-local action helpers may compose production calls when they remove repetition and keep the scenario readable. A test-file helper that builds and returns a domain object is a fixture, not a private function. `_make_user(...) -> User` becomes a `@pytest.fixture` returning the factory, so it composes with the fixtures it needs (`db`, `settings`, a stub clock) and a `conftest.py` can override it per package:
 
   ```python
   @pytest.fixture
