@@ -1,27 +1,24 @@
 import type { ClientModule } from 'claude-code'
 
-import { layoutOf, press, SPLIT } from './layout'
-import type { Menu, Row } from './layout'
+import type { Menu } from '../types'
+import { SPLIT } from './layout'
 
-type Props = { rows: Row[] }
+type Props = Menu & { height: number }
 
-const MenuView: ClientModule<Props, Menu> = (props, surface) => {
+// Draws the hooks module's menu and hands every key back to it; the state
+// lives there because the pane's own arrows reach it as `ui.scroll`.
+const MenuView: ClientModule<Props, true> = (props, surface) => {
   const { Box, Text } = surface.elements
   if (surface.state === undefined) {
-    surface.onKey(({ key }) => {
-      const before = surface.state ?? { rows: props.rows, cursor: 0 }
-      const after = press(before, key)
-      if (after === before) return
-      surface.setState(after)
-      if (after.rows !== before.rows) surface.post(layoutOf(after))
-    })
-    surface.setState({ rows: props.rows, cursor: 0 })
+    surface.onKey(({ key }) => surface.post({ key }))
+    surface.setState(true)
   }
-  const { rows, cursor } = surface.state ?? { rows: props.rows, cursor: 0 }
+  const { rows, cursor, offset, height } = props
 
   return (
     <Box flexDirection="column">
-      {rows.map((row, i) => {
+      {rows.slice(offset, offset + height).map((row, j) => {
+        const i = offset + j
         const mark = i === cursor ? '❯ ' : '  '
         return row.name === SPLIT ? (
           <Text key={`r${i}`} dimColor={i !== cursor}>
@@ -35,8 +32,7 @@ const MenuView: ClientModule<Props, Menu> = (props, surface) => {
           </Text>
         )
       })}
-      <Text dimColor> </Text>
-      <Text dimColor>↑↓ move · space/enter toggle · ←→ reorder · esc close</Text>
+      <Text dimColor>↑↓ move · click, then space/enter toggle · ←→ reorder · esc close</Text>
     </Box>
   )
 }

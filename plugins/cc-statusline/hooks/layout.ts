@@ -1,8 +1,8 @@
 // The binary's `[layout] left/right` lists, and the menu that edits them.
 
+import type { Menu, Row } from '../types'
+
 export type Layout = { left: string[]; right: string[] }
-export type Row = { name: string; on: boolean }
-export type Menu = { rows: Row[]; cursor: number }
 
 /** The row splitting left from right; it moves like any section. */
 export const SPLIT = '|'
@@ -95,7 +95,7 @@ export function menuFrom(layout: Layout): Menu {
     ...layout.right.map(name => ({ name, on: true })),
     ...KNOWN.filter(n => !listed.has(n)).map(name => ({ name, on: false })),
   ]
-  return { rows, cursor: 0 }
+  return { rows, cursor: 0, offset: 0 }
 }
 
 export function layoutOf(menu: Menu): Layout {
@@ -110,22 +110,41 @@ export function press(menu: Menu, key: string): Menu {
   const row = rows[cursor]
   switch (key) {
     case 'up':
-      return cursor > 0 ? { rows, cursor: cursor - 1 } : menu
+      return moveBy(menu, -1)
     case 'down':
-      return cursor < rows.length - 1 ? { rows, cursor: cursor + 1 } : menu
+      return moveBy(menu, 1)
     case ' ':
     case 'return':
       if (!row || row.name === SPLIT) return menu
-      return { rows: rows.map((r, i) => (i === cursor ? { ...r, on: !r.on } : r)), cursor }
+      return { ...menu, rows: rows.map((r, i) => (i === cursor ? { ...r, on: !r.on } : r)) }
     case 'left':
     case 'right': {
       const to = key === 'left' ? cursor - 1 : cursor + 1
       if (to < 0 || to >= rows.length) return menu
       const next = [...rows]
       ;[next[cursor], next[to]] = [next[to]!, next[cursor]!]
-      return { rows: next, cursor: to }
+      return { ...menu, rows: next, cursor: to }
     }
     default:
       return menu
   }
+}
+
+/** The cursor moved by `by` rows, clamped to the list; the same object at an edge. */
+export function moveBy(menu: Menu, by: number): Menu {
+  const cursor = Math.max(0, Math.min(menu.rows.length - 1, menu.cursor + by))
+  return cursor === menu.cursor ? menu : { ...menu, cursor }
+}
+
+/** Rows kept between the cursor and the window's edge while scrolling. */
+export const SCROLL_OFF = 3
+
+/** `menu` with `offset` moved just enough to keep the cursor `SCROLL_OFF` rows inside a `height`-row window. */
+export function inView(menu: Menu, height: number): Menu {
+  const last = Math.max(0, menu.rows.length - height)
+  const off = Math.min(SCROLL_OFF, Math.floor((height - 1) / 2))
+  let offset = Math.min(menu.offset, menu.cursor - off)
+  offset = Math.max(offset, menu.cursor + off - height + 1)
+  offset = Math.max(0, Math.min(last, offset))
+  return offset === menu.offset ? menu : { ...menu, offset }
 }

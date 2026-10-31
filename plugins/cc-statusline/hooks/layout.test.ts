@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { layoutOf, menuFrom, press, readLayout, SPLIT, writeLayout } from './layout'
+import { inView, layoutOf, menuFrom, moveBy, press, readLayout, SPLIT, writeLayout } from './layout'
 
 const CONFIG = `# top comment
 gap_root = 1
@@ -80,4 +80,30 @@ test('the split row cannot be unchecked, and edges do nothing', async () => {
   expect(press(m, ' ')).toBe(m)
   expect(press(m, 'up')).toBe(m)
   expect(press(m, 'left')).toBe(m)
+})
+
+const tall = (n: number, cursor = 0) => ({
+  rows: Array.from({ length: n }, (_, i) => ({ name: `s${i}`, on: true })),
+  cursor,
+  offset: 0,
+})
+
+test('the window scrolls to keep 3 rows past the cursor', async () => {
+  let m = inView(tall(20), 10)
+  for (let i = 0; i < 6; i++) m = inView(moveBy(m, 1), 10)
+  expect([m.cursor, m.offset]).toEqual([6, 0])
+  m = inView(moveBy(m, 1), 10)
+  expect([m.cursor, m.offset]).toEqual([7, 1])
+  m = inView(moveBy(m, 100), 10)
+  expect([m.cursor, m.offset]).toEqual([19, 10])
+  for (let i = 0; i < 6; i++) m = inView(moveBy(m, -1), 10)
+  expect([m.cursor, m.offset]).toEqual([13, 10])
+  m = inView(moveBy(m, -1), 10)
+  expect([m.cursor, m.offset]).toEqual([12, 9])
+})
+
+test('a short list or window never scrolls past its ends', async () => {
+  expect(inView(tall(5, 4), 10).offset).toBe(0)
+  expect(inView(tall(20, 19), 4).offset).toBe(16)
+  expect(moveBy(tall(3), -1).cursor).toBe(0)
 })
