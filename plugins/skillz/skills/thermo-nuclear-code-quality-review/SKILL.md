@@ -78,6 +78,8 @@ The rules above are stack-agnostic. The `skillz:ruthless-*` skills hold the per-
 | Django code: models, managers, views, ninja schemas, signals, migrations                     | `skillz:ruthless-django` (plus `skillz:ruthless-python`) |
 | `.swift`, `Package.swift`, `project.yml`                                                     | `skillz:ruthless-swift`                                  |
 | signing, entitlements, `ExportOptions*.plist`, TestFlight / App Store workflows, ASC scripts | `skillz:ruthless-appstore`                               |
+| `mise.toml`, `mise.*.toml`, `mise-tasks/**`                                                  | `skillz:ruthless-mise`                                   |
+| `hk.pkl`                                                                                     | `skillz:ruthless-hk`                                     |
 | a stack with another `skillz:ruthless-*` skill                                               | that skill                                               |
 
 - Evaluate the implementation against each loaded skill's rules explicitly, not only its reject-on-sight table. Check these every time:
