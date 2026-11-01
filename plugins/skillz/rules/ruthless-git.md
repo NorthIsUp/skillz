@@ -1,0 +1,1 @@
+../skills/ruthless-git/SKILL.md

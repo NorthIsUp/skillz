@@ -1,0 +1,198 @@
+#!/usr/bin/env bash
+# [MISE] description = "Install composable git hooks: each provider gets a slot in .git/hooks/<hook>.d/, one dispatcher per hook runs them in order"
+# [USAGE] flag "--list" help="Print the resolved hook layout and exit without changing anything"
+# [USAGE] flag "--force" help="Let providers overwrite slots they already own (git lfs update --force)"
+#
+# Template: copy to mise-tasks/git/hooks-install, chmod +x, run `mise run git:hooks-install`.
+# Edit `providers` and section 3 for the repo; everything else is generic.
+# Git gives each hook one file, and git-lfs and hk both refuse to overwrite a
+# hook they didn't write, so whoever installs first wins and the other silently
+# never runs. Here every provider owns a numbered file in <hook>.d/ instead.
+set -euo pipefail
+
+hooks_dir="$(git rev-parse --path-format=absolute --git-common-dir)/hooks"
+marker="# managed-by: mise git:hooks-install"
+repo="repo" # slot owner name for this repo's own hooks, e.g. the project name
+
+# <order>:<owner>:<installer>. The installer runs against an emptied slot, so a
+# tool that refuses to overwrite still writes; its hooks are then harvested into
+# the .d dirs under <order>-<owner>. Empty installer = written in section 3.
+providers=(
+  "10:git-lfs:git lfs update${usage_force:+ --force}"
+  "20:hk:mise x -- hk install --mise"
+)
+
+if [[ -n "${usage_list:-}" ]]; then
+  printf '%s\n' "hooks dir: $hooks_dir"
+  for d in "$hooks_dir"/*.d; do
+    [[ -d "$d" ]] || continue
+    printf '\n%s\n' "$(basename "$d" .d):"
+    for e in "$d"/*; do
+      [[ -e "$e" ]] || continue
+      printf '  %s%s\n' "$(basename "$e")" "$([[ -x "$e" ]] || echo '  (not executable - skipped)')"
+    done
+  done
+  exit 0
+fi
+
+# --- 1. harvest whatever occupies the slots today ----------------------------
+# A pre-existing copy of a provider's hook is filed under that provider's name,
+# so its reinstall replaces it instead of running it twice. Anything else is
+# kept as 00-legacy rather than deleted.
+classify() {
+  if grep -q 'git lfs' "$1"; then
+    echo "10-git-lfs"
+  elif grep -qE '\bhk (run|install)\b' "$1"; then
+    echo "20-hk"
+  else
+    echo "00-legacy"
+  fi
+}
+
+harvest() {
+  local slot="${1:-}" hook base name target
+  for hook in "$hooks_dir"/*; do
+    [[ -f "$hook" ]] || continue
+    base="$(basename "$hook")"
+    case "$base" in *.sample | *.local | *.bak | *.tmp.*) continue ;; esac
+    grep -qF "$marker" "$hook" && continue
+    name="${slot:-$(classify "$hook")}"
+    mkdir -p "$hooks_dir/$base.d"
+    target="$hooks_dir/$base.d/$name"
+    mv -f "$hook" "$target"
+    chmod +x "$target"
+    echo "  harvested $base -> $base.d/$name"
+  done
+}
+
+echo "Harvesting pre-existing hooks..."
+harvest
+
+# --- 2. let each provider install, then harvest what it wrote ----------------
+for entry in "${providers[@]}"; do
+  prefix="${entry%%:*}"
+  rest="${entry#*:}"
+  name="${rest%%:*}"
+  install_cmd="${rest#*:}"
+  [[ -z "$install_cmd" ]] && continue
+  if ! command -v "${install_cmd%% *}" >/dev/null 2>&1; then
+    echo "$name: '${install_cmd%% *}' not found, skipping"
+    continue
+  fi
+  echo "$name: running '$install_cmd'"
+  eval "$install_cmd" >/dev/null 2>&1 || echo "  ($install_cmd exited non-zero; harvesting anything it wrote)"
+  harvest "$prefix-$name"
+done
+
+# --- 3. this repo's own hooks ------------------------------------------------
+# Rename into place: a hook rewritten in place while it runs makes sh resume at
+# a stale byte offset. The hidden temp name keeps the dispatcher's glob off it.
+write_hook() {
+  local tmp="${1%/*}/.${1##*/}.tmp.$$"
+  { cat >"$tmp" && chmod +x "$tmp" && mv -f "$tmp" "$1"; } || { rm -f "$tmp"; return 1; }
+}
+
+# New-worktree bootstrap: `git worktree add` and `git clone` fire post-checkout
+# with an all-zeros previous HEAD; a branch switch passes a real sha.
+mkdir -p "$hooks_dir/post-checkout.d"
+write_hook "$hooks_dir/post-checkout.d/30-$repo-worktree-init" <<'EOF'
+#!/bin/sh
+[ "$1" = "0000000000000000000000000000000000000000" ] || exit 0
+PATH="$HOME/.local/bin:$PATH"; export PATH
+command -v mise >/dev/null 2>&1 || exit 0
+mise trust "$(git rev-parse --show-toplevel)" >/dev/null 2>&1 || true
+mise tasks info worktree-init >/dev/null 2>&1 || exit 0
+mise run worktree-init >&2 || echo "post-checkout: worktree-init failed (non-fatal); run 'mise run worktree-init'" >&2
+EOF
+echo "$repo: installed post-checkout.d/30-$repo-worktree-init"
+
+# Fail a direct push to the default branch in milliseconds instead of a server
+# round-trip. 05 runs it before the LFS upload.
+mkdir -p "$hooks_dir/pre-push.d"
+write_hook "$hooks_dir/pre-push.d/05-$repo-protect-main" <<'EOF'
+#!/bin/sh
+# stdin: <local ref> <local sha> <remote ref> <remote sha>, one line per ref.
+[ -n "${ALLOW_PUSH_MAIN:-}" ] && exit 0
+while read -r _local_ref _local_sha remote_ref _remote_sha; do
+  case "$remote_ref" in
+    refs/heads/main | refs/heads/master)
+      echo "pre-push: refusing to push directly to ${remote_ref#refs/heads/}. Open a PR, or set ALLOW_PUSH_MAIN=1." >&2
+      exit 1
+      ;;
+  esac
+done
+EOF
+echo "$repo: installed pre-push.d/05-$repo-protect-main"
+
+# hk's hooks call `mise x -- hk`, which resolves whatever hk the ambient
+# MISE_ENV yields; a per-dev .miserc.toml or an exported MISE_ENV can drop the
+# hk profile. Pin it in hk's slot. Delete this block if the repo has no hk profile.
+for f in "$hooks_dir"/*.d/20-hk; do
+  [[ -f "$f" ]] || continue
+  grep -q 'MISE_ENV' "$f" && continue
+  {
+    # shellcheck disable=SC2016  # hook source: expands when the hook runs
+    printf '%s\n' '#!/bin/sh' \
+      'case ",${MISE_ENV:-}," in' \
+      '  *,hk,*) ;;' \
+      '  *) MISE_ENV="${MISE_ENV:-dev},hk"; export MISE_ENV ;;' \
+      'esac'
+    tail -n +2 "$f"
+  } | write_hook "$f"
+  echo "  pinned MISE_ENV in $(basename "$(dirname "$f")")/$(basename "$f")"
+done
+# hk 2.x registers git config hooks (hook.hk-<event>.command) instead of files.
+git config --get-regexp '^hook\.hk-.*\.command$' 2>/dev/null | while read -r key cmd; do
+  [[ "$cmd" == *MISE_ENV* ]] && continue
+  # shellcheck disable=SC2016  # hook source: expands when the hook runs
+  git config "$key" 'case ",${MISE_ENV:-}," in *,hk,*) ;; *) MISE_ENV="${MISE_ENV:-dev},hk"; export MISE_ENV ;; esac; '"$cmd"
+  echo "  pinned MISE_ENV in $key"
+done
+
+# --- 4. the dispatcher -------------------------------------------------------
+dispatcher() {
+  cat <<EOF
+#!/bin/sh
+$marker
+# Runs every executable in .git/hooks/<this hook>.d/ in filename order.
+set -e
+
+hook=\$(basename "\$0")
+# --git-common-dir, not \$GIT_DIR: in a worktree \$GIT_DIR is .git/worktrees/<name>.
+dir="\$(git rev-parse --path-format=absolute --git-common-dir)/hooks/\$hook.d"
+[ -d "\$dir" ] || exit 0
+
+# pre-push and friends get stdin: read it once, replay it to each provider.
+stdin_file=
+if [ ! -t 0 ]; then
+  stdin_file=\$(mktemp "\${TMPDIR:-/tmp}/githook.XXXXXX")
+  trap 'rm -f "\$stdin_file"' EXIT
+  cat > "\$stdin_file"
+fi
+
+for provider in "\$dir"/*; do
+  case "\${provider##*/}" in .*|*.tmp.*) continue ;; esac
+  [ -x "\$provider" ] || continue
+  if [ -n "\$stdin_file" ]; then
+    "\$provider" "\$@" < "\$stdin_file"
+  else
+    "\$provider" "\$@" < /dev/null
+  fi
+done
+EOF
+}
+
+echo "Installing dispatchers..."
+for d in "$hooks_dir"/*.d; do
+  [[ -d "$d" ]] || continue
+  hook="$(basename "$d" .d)"
+  if ! compgen -G "$d/*" >/dev/null; then
+    rmdir "$d" 2>/dev/null || true
+    continue
+  fi
+  dispatcher | write_hook "$hooks_dir/$hook"
+  echo "  $hook -> $(find "$d" -maxdepth 1 -type f | wc -l | tr -d ' ') provider(s)"
+done
+
+echo
+echo "Done. Inspect with: mise run git:hooks-install --list"
