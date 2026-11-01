@@ -31,7 +31,30 @@ Bypassing a hook is `skillz:never-no-verify`.
 
 ## The bar
 
-- **Rule 0 — Prefer git's config hooks where the git has them.** Git 2.54 runs every `hook.<name>.event` + `hook.<name>.command` pair for an event, in config order, and then the `.git/hooks/<event>` file (`git help hook`). hk 2.x installs itself this way (`hook.hk-pre-commit.*`), so it never fights for the file. The dispatcher below is for providers that still write hook files (git-lfs) and for older git. Pin hk's env on its config command (Rule 11).
+- **Rule 0 — Prefer git's config hooks; git handles many hooks per event natively.** Git 2.54 runs every `hook.<name>.event` + `hook.<name>.command` pair for an event, in config order, and then the single `.git/hooks/<event>` file (`git help hook`). The command gets the hook's arguments appended (git runs `<command> "$@"`) and the hook's stdin, so `git lfs pre-push` as a command behaves exactly as it does in a hook file. The config lives in the shared `.git/config`, so every worktree gets it. hk 2.x installs itself this way (`hook.hk-pre-commit.*`). The dispatcher (Rules 1–7) is for older git and for a provider you can't convert. Pin hk's env on its config command (Rule 11).
+  - **Converting git-lfs.** `git lfs install` writes hook files, and every later git-lfs command (`track`, `status`, `ls-files`, its own hooks) quietly rewrites any that are missing. Moving them to config isn't enough, because the files come back and LFS runs twice per push. git-lfs never overwrites a hook file it didn't write, so leave a placeholder in each of its four slots:
+
+    ```bash
+    git lfs install --local --skip-repo     # filters only, no hook files
+    hooks="$(git rev-parse --path-format=absolute --git-common-dir)/hooks"
+    mkdir -p "$hooks"
+    for e in pre-push post-checkout post-commit post-merge; do
+      rm -f "$hooks/$e"                      # harvest it first if it holds anything but git-lfs (Rule 4)
+      git config "hook.lfs-$e.event" "$e"
+      git config "hook.lfs-$e.command" "git lfs $e"
+      printf '#!/bin/sh\n# git-lfs runs from git config (hook.lfs-%s); this file stops git-lfs reinstalling its hook here.\n' "$e" >"$hooks/$e"
+      chmod +x "$hooks/$e"
+    done
+    ```
+
+    Verified with git 2.54 and git-lfs 3.8.1: a push uploaded each object once, with no warnings, and a fresh clone got real content rather than pointers. The placeholder survived `git lfs track`, `status` and `ls-files`.
+
+    There's no setting that does this (checked in git-lfs 3.8.1, the latest as of 2026-10-22). git-lfs doesn't know about config hooks:
+    - `clean`, `smudge` and `filter-process` call `installHooks` on every `git add` and checkout, with no opt-out.
+    - The only env opt-out is `GIT_LFS_TRACK_NO_INSTALL_HOOKS`, and it covers `track` alone.
+    - On an existing file, git-lfs tries an upgrade, gets "Hook already exists", and those callers ignore the error. That's why the placeholder holds.
+    - Never run `git lfs install --force` or `git lfs update --force` afterwards: they overwrite the placeholders.
+
 - **Rule 1 — Each hook is a dispatcher; each provider owns a file in `.git/hooks/<hook>.d/`.** The hook runs every executable in its `.d/` in filename order, under `set -e`, so the first failure still rejects. Adding a provider is a file drop, and no provider can displace another. The dispatcher carries a `# managed-by:` marker, so the installer knows which hooks it wrote.
 - **Rule 2 — Slots are `<NN>-<owner>[-<purpose>]`, and the number is the order.**
   - `05-` guards that should fail fast, before any upload (protect-main).
@@ -55,10 +78,11 @@ Bypassing a hook is `skillz:never-no-verify`.
 
 | Smell                                                                 | Replace with                                              |
 | --------------------------------------------------------------------- | --------------------------------------------------------- |
-| Two tools each running their own `install` into `.git/hooks`          | Dispatcher + `<hook>.d/` slots via `git:hooks-install`    |
+| Two tools each running their own `install` into `.git/hooks`          | Config hooks (Rule 0); the dispatcher where git is older  |
 | A hook script that calls the other tool's hook inline                 | Separate numbered slots                                   |
 | Installer that `rm`s an existing hook                                 | Harvest it into `.d/` (`00-legacy` or the owner's slot)   |
 | `$GIT_DIR/hooks` in a hook or installer                               | `git rev-parse --path-format=absolute --git-common-dir`   |
+| git-lfs hook files deleted after moving it to config hooks            | Placeholder files in its four slots (Rule 0)              |
 | Dispatcher that pipes stdin to the first provider only                | Buffer once, replay to each                               |
 | `cat > .git/hooks/x` over a live hook                                 | Write a hidden temp file, then `mv -f`                    |
 | Worktree setup as a manual README step                                | `post-checkout` slot keyed on the all-zeros previous HEAD |
