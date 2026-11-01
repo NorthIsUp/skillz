@@ -17,6 +17,14 @@ repo="repo" # slot owner name for this repo's own hooks, e.g. the project name
 # <order>:<owner>:<installer>. The installer runs against an emptied slot, so a
 # tool that refuses to overwrite still writes; its hooks are then harvested into
 # the .d dirs under <order>-<owner>. Empty installer = written in section 3.
+# hk's hooks call `mise x -- hk`, which follows the ambient MISE_ENV; a per-dev
+# .miserc.toml or exported MISE_ENV can drop the hk profile. The same pin runs
+# here, so `hk install` is the pinned hk, and goes on hk's hooks below. Delete
+# both uses if the repo has no hk profile.
+# shellcheck disable=SC2016  # hook source: expands when the hook runs
+pin_mise_env='case ",${MISE_ENV:-}," in *,hk,*) ;; *) MISE_ENV="${MISE_ENV:-dev},hk"; export MISE_ENV ;; esac; '
+eval "$pin_mise_env"
+
 providers=(
   "10:git-lfs:git lfs update${usage_force:+ --force}"
   "20:hk:mise x -- hk install --mise"
@@ -95,16 +103,33 @@ write_hook() {
 # New-worktree bootstrap: `git worktree add` and `git clone` fire post-checkout
 # with an all-zeros previous HEAD; a branch switch passes a real sha.
 mkdir -p "$hooks_dir/post-checkout.d"
-write_hook "$hooks_dir/post-checkout.d/30-$repo-worktree-init" <<'EOF'
+write_hook "$hooks_dir/post-checkout.d/30-$repo-init-worktree" <<'EOF'
 #!/bin/sh
 [ "$1" = "0000000000000000000000000000000000000000" ] || exit 0
 PATH="$HOME/.local/bin:$PATH"; export PATH
 command -v mise >/dev/null 2>&1 || exit 0
 mise trust "$(git rev-parse --show-toplevel)" >/dev/null 2>&1 || true
-mise tasks info worktree-init >/dev/null 2>&1 || exit 0
-mise run worktree-init >&2 || echo "post-checkout: worktree-init failed (non-fatal); run 'mise run worktree-init'" >&2
+mise tasks info init-worktree >/dev/null 2>&1 || exit 0
+mise run init-worktree >&2 || echo "post-checkout: init-worktree failed (non-fatal); run 'mise run init-worktree'" >&2
 EOF
-echo "$repo: installed post-checkout.d/30-$repo-worktree-init"
+echo "$repo: installed post-checkout.d/30-$repo-init-worktree"
+
+# git-lfs's own post-checkout/post-merge (slot 10) smudge LFS files as full
+# copies; re-create them as copy-on-write clones of the shared object store.
+# Silent and never fails: no copy-on-write, or a dirty tree, leaves the copies.
+# shellcheck disable=SC2016  # hook source: expands when the hook runs
+lfs_dedup='#!/bin/sh
+# post-checkout: $3=1 for a branch switch (0 = file checkout).
+case "$(basename "$(dirname "$0")")" in
+  post-checkout.d) [ "$3" = "1" ] || exit 0 ;;
+esac
+git lfs dedup >/dev/null 2>&1 || true
+'
+for h in post-checkout post-merge; do
+  mkdir -p "$hooks_dir/$h.d"
+  printf '%s' "$lfs_dedup" | write_hook "$hooks_dir/$h.d/50-$repo-lfs-dedup"
+  echo "$repo: installed $h.d/50-$repo-lfs-dedup"
+done
 
 # Fail a direct push to the default branch in milliseconds instead of a server
 # round-trip. 05 runs it before the LFS upload.
@@ -124,30 +149,22 @@ done
 EOF
 echo "$repo: installed pre-push.d/05-$repo-protect-main"
 
-# hk's hooks call `mise x -- hk`, which resolves whatever hk the ambient
-# MISE_ENV yields; a per-dev .miserc.toml or an exported MISE_ENV can drop the
-# hk profile. Pin it in hk's slot. Delete this block if the repo has no hk profile.
-for f in "$hooks_dir"/*.d/20-hk; do
-  [[ -f "$f" ]] || continue
-  grep -q 'MISE_ENV' "$f" && continue
-  {
-    # shellcheck disable=SC2016  # hook source: expands when the hook runs
-    printf '%s\n' '#!/bin/sh' \
-      'case ",${MISE_ENV:-}," in' \
-      '  *,hk,*) ;;' \
-      '  *) MISE_ENV="${MISE_ENV:-dev},hk"; export MISE_ENV ;;' \
-      'esac'
-    tail -n +2 "$f"
-  } | write_hook "$f"
-  echo "  pinned MISE_ENV in $(basename "$(dirname "$f")")/$(basename "$f")"
-done
-# hk 2.x registers git config hooks (hook.hk-<event>.command) instead of files.
-git config --get-regexp '^hook\.hk-.*\.command$' 2>/dev/null | while read -r key cmd; do
-  [[ "$cmd" == *MISE_ENV* ]] && continue
-  # shellcheck disable=SC2016  # hook source: expands when the hook runs
-  git config "$key" 'case ",${MISE_ENV:-}," in *,hk,*) ;; *) MISE_ENV="${MISE_ENV:-dev},hk"; export MISE_ENV ;; esac; '"$cmd"
-  echo "  pinned MISE_ENV in $key"
-done
+# hk installs itself as git config hooks (hook.hk-<event>.command), which git
+# runs alongside the dispatcher, so a 20-hk slot would run hk twice. Retire the
+# slots only once the config hooks exist, so hk never ends up absent.
+hk_config=$(git config --get-regexp '^hook\.hk-.*\.command$' 2>/dev/null || true)
+if [[ -n "$hk_config" ]]; then
+  for f in "$hooks_dir"/*.d/20-hk; do
+    [[ -f "$f" ]] || continue
+    rm -f "$f"
+    echo "  removed $(basename "$(dirname "$f")")/20-hk: hk runs from git config"
+  done
+  while read -r key cmd; do
+    [[ "$cmd" == *MISE_ENV* ]] && continue
+    git config "$key" "$pin_mise_env$cmd"
+    echo "  pinned MISE_ENV in $key"
+  done <<<"$hk_config"
+fi
 
 # --- 4. the dispatcher -------------------------------------------------------
 dispatcher() {
@@ -188,6 +205,7 @@ for d in "$hooks_dir"/*.d; do
   hook="$(basename "$d" .d)"
   if ! compgen -G "$d/*" >/dev/null; then
     rmdir "$d" 2>/dev/null || true
+    [[ -f "$hooks_dir/$hook" ]] && grep -qF "$marker" "$hooks_dir/$hook" && rm -f "$hooks_dir/$hook"
     continue
   fi
   dispatcher | write_hook "$hooks_dir/$hook"
