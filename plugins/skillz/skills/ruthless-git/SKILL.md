@@ -32,7 +32,7 @@ Bypassing a hook is `skillz:never-no-verify`.
 ## The bar
 
 - **Rule 0 — Prefer git's config hooks; git handles many hooks per event natively.** Git 2.54 runs every `hook.<name>.event` + `hook.<name>.command` pair for an event, in config order, and then the single `.git/hooks/<event>` file (`git help hook`). The command gets the hook's arguments appended (git runs `<command> "$@"`) and the hook's stdin, so `git lfs pre-push` as a command behaves exactly as it does in a hook file. The config lives in the shared `.git/config`, so every worktree gets it. hk 2.x installs itself this way (`hook.hk-pre-commit.*`). The dispatcher (Rules 1–7) is for older git and for a provider you can't convert. Pin hk's env on its config command (Rule 11).
-  - **Converting git-lfs.** `git lfs install` writes hook files, and every later git-lfs command (`track`, `status`, `ls-files`, its own hooks) quietly rewrites any that are missing. Moving them to config isn't enough, because the files come back and LFS runs twice per push. git-lfs never overwrites a hook file it didn't write, so leave a placeholder in each of its four slots:
+  - **Converting git-lfs.** `git lfs install` writes hook files, and git-lfs quietly rewrites any that are missing whenever its filters run (every `git add` and checkout of an LFS file), and on `track`, `untrack`, `fsck`, `clone`, `migrate import` and `update`. Moving them to config isn't enough, because the files come back and LFS runs twice per push. git-lfs never overwrites a hook file it didn't write, so leave a placeholder in each of its four slots:
 
     ```bash
     git lfs install --local --skip-repo     # filters only, no hook files
@@ -47,7 +47,7 @@ Bypassing a hook is `skillz:never-no-verify`.
     done
     ```
 
-    Verified with git 2.54 and git-lfs 3.8.1: a push uploaded each object once, with no warnings, and a fresh clone got real content rather than pointers. The placeholder survived `git lfs track`, `status` and `ls-files`.
+    Verified with git 2.54 and git-lfs 3.8.1: a push uploaded each object once, with no warnings, and a fresh clone got real content rather than pointers. The placeholder survived `git lfs track` and LFS adds and checkouts.
 
     There's no setting that does this (checked in git-lfs 3.8.1, the latest as of 2026-10-22). git-lfs doesn't know about config hooks:
     - `clean`, `smudge` and `filter-process` call `installHooks` on every `git add` and checkout, with no opt-out.
