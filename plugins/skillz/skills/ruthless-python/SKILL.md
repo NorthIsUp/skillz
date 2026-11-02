@@ -137,6 +137,8 @@ to cases the rule doesn't literally cover.
 
   One-line strings and strings whose whitespace is the data (fixtures, golden output) stay as they are.
 
+- **Rule 13 — Every module explicitly declares its public interface with `__all__`.** List the names callers may rely on, including intentional re-exports; everything else is internal. This applies to every Python module, including package `__init__.py` files. A module with no public interface declares `__all__ = []`. Keep the list explicit and update it when the supported interface changes; do not generate it from `globals()` or expose imported dependencies by accident. `__all__` documents the supported contract and controls wildcard imports; it does not prevent explicit imports of internal names.
+
 ## Library defaults
 
 Reach for these first; don't introduce alternatives without a reason:
