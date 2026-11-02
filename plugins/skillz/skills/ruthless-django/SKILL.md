@@ -55,6 +55,18 @@ Before calling the move complete, check for stale references and run the
 tests from their new location. Moving implementation while leaving its
 tests in the old app is an incomplete refactor.
 
+## Public app API
+
+Declare an app's supported public functionality in `__all__` in its
+`__init__.py`, re-exporting the supported names there. Other apps import
+that functionality from the app package. Do not create a `public.py`
+module; names absent from `__all__` are app internals.
+
+Keep package initialization safe during Django app discovery. Exports
+that depend on models must defer loading until the app registry is ready
+(for example, through module-level `__getattr__`); listing a name in
+`__all__` alone neither imports it nor makes it available as an attribute.
+
 ## Fat models, fat managers
 
 Behavior lives with the data. A model owns the logic about one instance;
