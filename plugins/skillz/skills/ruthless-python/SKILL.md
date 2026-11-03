@@ -78,6 +78,20 @@ to cases the rule doesn't literally cover.
 
   ```
 
+  When a class pattern can't express the check (element types, JSON shape, a regex), put a typed guard in the case: a function returning `TypeIs[T]` (or `TypeGuard[T]` when `T` isn't a subtype of the input) narrows the subject in the body, where a bare `bool` helper doesn't. Reach for `we-love-matchbox` first: `is_list_of` / `is_dict_of` and friends for containers, `is_json_object` / `is_json_array` for decoded JSON, and `ReFullmatch` / `ReSearch` as regex value patterns. Write your own guard only when it has none.
+
+  ```python
+  from we_love.matchbox import ReFullmatch, is_list_of
+
+  class Ticket:
+      key = ReFullmatch(r"(?P<team>[A-Z]+)-(?P<number>\d+)")
+
+  match value:
+      case list() as ids if is_list_of(ids, int): ...   # ids: list[int]
+      case Ticket.key: team = Ticket.key["team"]  # str | None
+      case _: ...
+  ```
+
 - **Rule 7 — Async-native. I/O is `async` wherever the library allows it.** Every network call, file read, subprocess, sleep, and DB query is awaited; a sync I/O call in async code is a bug unless a comment names why no async path exists. `TaskGroup` is the default concurrency primitive — never `asyncio.gather`, raw `create_task`, threads, or `concurrent.futures` without a specific reason in a comment.
 
   **Reach in this order, and stop at the first rung that covers it:**
@@ -145,6 +159,7 @@ Reach for these first; don't introduce alternatives without a reason:
 
 - `pydantic` — data models, settings, validation.
 - `pydantic-ai` — LLM agents, tool calls, structured outputs.
+- `we-love-matchbox` — typed guards (`TypeGuard`/`TypeIs`) and regex value patterns for `match` cases (Rule 6).
 - `fastapi` — HTTP API. Async-native, pydantic-native. Routes take and return pydantic models; the OpenAPI schema in the docs _is_ the schema in the code. Pair with the Tortoise-derived schemas below — never hand-write a parallel `BaseModel` for an endpoint that returns a DB row. See `references/fastapi.md`.
 - `tortoise-orm` — async ORM. Use `tortoise.contrib.pydantic.pydantic_model_creator` to derive pydantic schemas straight from the ORM models, so the same source of truth covers both the DB row and the API/tool schema. See `references/pydantic.md`.
 - `asyncstdlib` (as `a`) — async equivalents of `itertools` / `functools` / `builtins` (`a.map`, `a.filter`, `a.zip`, `a.cached_property`). Rung 2 of Rule 7.
@@ -210,40 +225,41 @@ See `references/pydantic.md` for model factory patterns.
 
 ## Anti-patterns (reject on sight)
 
-| Smell                                                      | Replace with                                                   |
-| ---------------------------------------------------------- | -------------------------------------------------------------- |
-| `def f(x):` (no annotations)                               | Full signature with types                                      |
-| `-> dict[str, Any]` / `-> list[dict]`                      | `TypedDict` or pydantic model                                  |
-| `def helper(model: M, ...)` in a utils module              | A method on `M`                                                |
-| `def _make_user(...) -> User` in a test file               | `@pytest.fixture` returning the factory                        |
-| Three-arm `if isinstance(x, A): ... elif ...`              | `match x: case A(): ...`                                       |
-| `asyncio.gather(*tasks)` for fan-out                       | `async with asyncio.TaskGroup() as tg:`                        |
-| `asyncio.create_task(f())` then forgetting it              | `tg.create_task(f())` inside a task group                      |
-| `asyncio.wait_for(...)` for a deadline                     | `async with asyncio.timeout(...):`                             |
-| `threading.Thread` for I/O concurrency                     | async + task group                                             |
-| `time.sleep` in async code                                 | `await asyncio.sleep(...)`                                     |
-| `open(...)` / `Path.read_text()` in async code             | `await anyio.Path(p).read_text()`                              |
-| `os.path` / `pathlib` for disk access                      | `anyio.Path` (plain `Path` for path algebra only)              |
-| Hand-rolled `async for` accumulation loop                  | `import asyncstdlib as a` → `a.map` / `a.filter`               |
-| `for x in await collect_all(): ...`                        | `async for x in stream: ...` (via `asyncstdlib`)               |
-| `json.loads(raw)` then `data["key"]`                       | `Model.model_validate_json(raw)`                               |
-| Plain dict as a data carrier across modules                | pydantic model (or `TypedDict` if internal-only)               |
-| `@dataclass` in a project that has pydantic                | `BaseModel` (`frozen=True`), or `RootModel[T]`                 |
-| `**kwargs: Any` for config                                 | A `BaseModel` for config; pass the model                       |
-| `**kwargs: Any` / untyped `**kwargs` passthrough           | `**kwargs: Unpack[SomeTypedDict]`                              |
-| `@property` doing real I/O                                 | Make it an explicit `async def` method                         |
-| `module_exports.py` / `exports.py` listing a package's API | The package's `__init__.py` with `__all__` (Rule 13)           |
-| `cast(T, x)` to silence the checker                        | Fix the type at the source, or `TypeGuard`; else ask (Rule 2a) |
-| `# type: ignore` / `# pyright: ignore` / `# ty: ignore`    | Fix the type at the source; else ask (Rule 2a)                 |
-| `Any` because the real type is awkward                     | The real type, a stub, or pydantic (Rule 2)                    |
-| `pickle` / `shelve` / `dill` for persistence               | `model_dump_json()` + `model_validate_json()`                  |
-| `pandas.to_pickle`, `numpy` `allow_pickle`                 | Parquet / Arrow / `npz` without pickle                         |
-| A model instance as a cache or queue payload               | A versioned pydantic schema, dumped to JSON                    |
-| `timeout: int` / `ttl: int` (unit only in docs)            | `timeout: timedelta`; `timeout_seconds` at an API              |
-| `created_at: str` / epoch `int` on a model                 | `created_at: datetime` (tz-aware)                              |
-| `datetime.utcnow()`                                        | `datetime.now(UTC)`                                            |
-| Flush-left `"""` SQL/code block, or `textwrap.dedent`      | `inspect.cleandoc(""" ... """)` at the code's indent (Rule 12) |
-| Stored blob with no version field                          | A `v: Literal[N]` on the model                                 |
+| Smell                                                             | Replace with                                                    |
+| ----------------------------------------------------------------- | --------------------------------------------------------------- |
+| `def f(x):` (no annotations)                                      | Full signature with types                                       |
+| `-> dict[str, Any]` / `-> list[dict]`                             | `TypedDict` or pydantic model                                   |
+| `def helper(model: M, ...)` in a utils module                     | A method on `M`                                                 |
+| `def _make_user(...) -> User` in a test file                      | `@pytest.fixture` returning the factory                         |
+| Three-arm `if isinstance(x, A): ... elif ...`                     | `match x: case A(): ...`                                        |
+| `asyncio.gather(*tasks)` for fan-out                              | `async with asyncio.TaskGroup() as tg:`                         |
+| `asyncio.create_task(f())` then forgetting it                     | `tg.create_task(f())` inside a task group                       |
+| `asyncio.wait_for(...)` for a deadline                            | `async with asyncio.timeout(...):`                              |
+| `threading.Thread` for I/O concurrency                            | async + task group                                              |
+| `time.sleep` in async code                                        | `await asyncio.sleep(...)`                                      |
+| `open(...)` / `Path.read_text()` in async code                    | `await anyio.Path(p).read_text()`                               |
+| `os.path` / `pathlib` for disk access                             | `anyio.Path` (plain `Path` for path algebra only)               |
+| Hand-rolled `async for` accumulation loop                         | `import asyncstdlib as a` → `a.map` / `a.filter`                |
+| `for x in await collect_all(): ...`                               | `async for x in stream: ...` (via `asyncstdlib`)                |
+| `json.loads(raw)` then `data["key"]`                              | `Model.model_validate_json(raw)`                                |
+| Plain dict as a data carrier across modules                       | pydantic model (or `TypedDict` if internal-only)                |
+| `@dataclass` in a project that has pydantic                       | `BaseModel` (`frozen=True`), or `RootModel[T]`                  |
+| `**kwargs: Any` for config                                        | A `BaseModel` for config; pass the model                        |
+| `**kwargs: Any` / untyped `**kwargs` passthrough                  | `**kwargs: Unpack[SomeTypedDict]`                               |
+| `@property` doing real I/O                                        | Make it an explicit `async def` method                          |
+| `module_exports.py` / `exports.py` listing a package's API        | The package's `__init__.py` with `__all__` (Rule 13)            |
+| `all(isinstance(i, int) for i in xs)` or a `-> bool` check helper | A `TypeIs`/`TypeGuard` guard, `we-love-matchbox` first (Rule 6) |
+| `cast(T, x)` to silence the checker                               | Fix the type at the source, or `TypeGuard`; else ask (Rule 2a)  |
+| `# type: ignore` / `# pyright: ignore` / `# ty: ignore`           | Fix the type at the source; else ask (Rule 2a)                  |
+| `Any` because the real type is awkward                            | The real type, a stub, or pydantic (Rule 2)                     |
+| `pickle` / `shelve` / `dill` for persistence                      | `model_dump_json()` + `model_validate_json()`                   |
+| `pandas.to_pickle`, `numpy` `allow_pickle`                        | Parquet / Arrow / `npz` without pickle                          |
+| A model instance as a cache or queue payload                      | A versioned pydantic schema, dumped to JSON                     |
+| `timeout: int` / `ttl: int` (unit only in docs)                   | `timeout: timedelta`; `timeout_seconds` at an API               |
+| `created_at: str` / epoch `int` on a model                        | `created_at: datetime` (tz-aware)                               |
+| `datetime.utcnow()`                                               | `datetime.now(UTC)`                                             |
+| Flush-left `"""` SQL/code block, or `textwrap.dedent`             | `inspect.cleandoc(""" ... """)` at the code's indent (Rule 12)  |
+| Stored blob with no version field                                 | A `v: Literal[N]` on the model                                  |
 
 ## Reviewing Python (PRs, diffs)
 
