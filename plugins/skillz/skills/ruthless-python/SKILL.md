@@ -137,7 +137,7 @@ to cases the rule doesn't literally cover.
 
   One-line strings and strings whose whitespace is the data (fixtures, golden output) stay as they are.
 
-- **Rule 13 — Every module explicitly declares its public interface with `__all__`.** List the names callers may rely on, including intentional re-exports; everything else is internal. This applies to every Python module, including package `__init__.py` files. A module with no public interface declares `__all__ = []`. Keep the list explicit and update it when the supported interface changes; do not generate it from `globals()` or expose imported dependencies by accident. `__all__` documents the supported contract and controls wildcard imports; it does not prevent explicit imports of internal names.
+- **Rule 13 — Every module explicitly declares its public interface with `__all__`.** List the names callers may rely on, including intentional re-exports; everything else is internal. This applies to every Python module, including package `__init__.py` files. A module with no public interface declares `__all__ = []`. Keep the list explicit and update it when the supported interface changes; do not generate it from `globals()` or expose imported dependencies by accident. `__all__` documents the supported contract and controls wildcard imports; it does not prevent explicit imports of internal names. A package's public exports go through its `__init__.py` and its `__all__`, and nowhere else: no central `module_exports.py` registry, no `exports.py`/`public.py` side module. A second list of exports drifts from the package, and callers can't tell which one is the contract.
 
 ## Library defaults
 
@@ -210,39 +210,40 @@ See `references/pydantic.md` for model factory patterns.
 
 ## Anti-patterns (reject on sight)
 
-| Smell                                                   | Replace with                                                   |
-| ------------------------------------------------------- | -------------------------------------------------------------- |
-| `def f(x):` (no annotations)                            | Full signature with types                                      |
-| `-> dict[str, Any]` / `-> list[dict]`                   | `TypedDict` or pydantic model                                  |
-| `def helper(model: M, ...)` in a utils module           | A method on `M`                                                |
-| `def _make_user(...) -> User` in a test file            | `@pytest.fixture` returning the factory                        |
-| Three-arm `if isinstance(x, A): ... elif ...`           | `match x: case A(): ...`                                       |
-| `asyncio.gather(*tasks)` for fan-out                    | `async with asyncio.TaskGroup() as tg:`                        |
-| `asyncio.create_task(f())` then forgetting it           | `tg.create_task(f())` inside a task group                      |
-| `asyncio.wait_for(...)` for a deadline                  | `async with asyncio.timeout(...):`                             |
-| `threading.Thread` for I/O concurrency                  | async + task group                                             |
-| `time.sleep` in async code                              | `await asyncio.sleep(...)`                                     |
-| `open(...)` / `Path.read_text()` in async code          | `await anyio.Path(p).read_text()`                              |
-| `os.path` / `pathlib` for disk access                   | `anyio.Path` (plain `Path` for path algebra only)              |
-| Hand-rolled `async for` accumulation loop               | `import asyncstdlib as a` → `a.map` / `a.filter`               |
-| `for x in await collect_all(): ...`                     | `async for x in stream: ...` (via `asyncstdlib`)               |
-| `json.loads(raw)` then `data["key"]`                    | `Model.model_validate_json(raw)`                               |
-| Plain dict as a data carrier across modules             | pydantic model (or `TypedDict` if internal-only)               |
-| `@dataclass` in a project that has pydantic             | `BaseModel` (`frozen=True`), or `RootModel[T]`                 |
-| `**kwargs: Any` for config                              | A `BaseModel` for config; pass the model                       |
-| `**kwargs: Any` / untyped `**kwargs` passthrough        | `**kwargs: Unpack[SomeTypedDict]`                              |
-| `@property` doing real I/O                              | Make it an explicit `async def` method                         |
-| `cast(T, x)` to silence the checker                     | Fix the type at the source, or `TypeGuard`; else ask (Rule 2a) |
-| `# type: ignore` / `# pyright: ignore` / `# ty: ignore` | Fix the type at the source; else ask (Rule 2a)                 |
-| `Any` because the real type is awkward                  | The real type, a stub, or pydantic (Rule 2)                    |
-| `pickle` / `shelve` / `dill` for persistence            | `model_dump_json()` + `model_validate_json()`                  |
-| `pandas.to_pickle`, `numpy` `allow_pickle`              | Parquet / Arrow / `npz` without pickle                         |
-| A model instance as a cache or queue payload            | A versioned pydantic schema, dumped to JSON                    |
-| `timeout: int` / `ttl: int` (unit only in docs)         | `timeout: timedelta`; `timeout_seconds` at an API              |
-| `created_at: str` / epoch `int` on a model              | `created_at: datetime` (tz-aware)                              |
-| `datetime.utcnow()`                                     | `datetime.now(UTC)`                                            |
-| Flush-left `"""` SQL/code block, or `textwrap.dedent`   | `inspect.cleandoc(""" ... """)` at the code's indent (Rule 12) |
-| Stored blob with no version field                       | A `v: Literal[N]` on the model                                 |
+| Smell                                                      | Replace with                                                   |
+| ---------------------------------------------------------- | -------------------------------------------------------------- |
+| `def f(x):` (no annotations)                               | Full signature with types                                      |
+| `-> dict[str, Any]` / `-> list[dict]`                      | `TypedDict` or pydantic model                                  |
+| `def helper(model: M, ...)` in a utils module              | A method on `M`                                                |
+| `def _make_user(...) -> User` in a test file               | `@pytest.fixture` returning the factory                        |
+| Three-arm `if isinstance(x, A): ... elif ...`              | `match x: case A(): ...`                                       |
+| `asyncio.gather(*tasks)` for fan-out                       | `async with asyncio.TaskGroup() as tg:`                        |
+| `asyncio.create_task(f())` then forgetting it              | `tg.create_task(f())` inside a task group                      |
+| `asyncio.wait_for(...)` for a deadline                     | `async with asyncio.timeout(...):`                             |
+| `threading.Thread` for I/O concurrency                     | async + task group                                             |
+| `time.sleep` in async code                                 | `await asyncio.sleep(...)`                                     |
+| `open(...)` / `Path.read_text()` in async code             | `await anyio.Path(p).read_text()`                              |
+| `os.path` / `pathlib` for disk access                      | `anyio.Path` (plain `Path` for path algebra only)              |
+| Hand-rolled `async for` accumulation loop                  | `import asyncstdlib as a` → `a.map` / `a.filter`               |
+| `for x in await collect_all(): ...`                        | `async for x in stream: ...` (via `asyncstdlib`)               |
+| `json.loads(raw)` then `data["key"]`                       | `Model.model_validate_json(raw)`                               |
+| Plain dict as a data carrier across modules                | pydantic model (or `TypedDict` if internal-only)               |
+| `@dataclass` in a project that has pydantic                | `BaseModel` (`frozen=True`), or `RootModel[T]`                 |
+| `**kwargs: Any` for config                                 | A `BaseModel` for config; pass the model                       |
+| `**kwargs: Any` / untyped `**kwargs` passthrough           | `**kwargs: Unpack[SomeTypedDict]`                              |
+| `@property` doing real I/O                                 | Make it an explicit `async def` method                         |
+| `module_exports.py` / `exports.py` listing a package's API | The package's `__init__.py` with `__all__` (Rule 13)           |
+| `cast(T, x)` to silence the checker                        | Fix the type at the source, or `TypeGuard`; else ask (Rule 2a) |
+| `# type: ignore` / `# pyright: ignore` / `# ty: ignore`    | Fix the type at the source; else ask (Rule 2a)                 |
+| `Any` because the real type is awkward                     | The real type, a stub, or pydantic (Rule 2)                    |
+| `pickle` / `shelve` / `dill` for persistence               | `model_dump_json()` + `model_validate_json()`                  |
+| `pandas.to_pickle`, `numpy` `allow_pickle`                 | Parquet / Arrow / `npz` without pickle                         |
+| A model instance as a cache or queue payload               | A versioned pydantic schema, dumped to JSON                    |
+| `timeout: int` / `ttl: int` (unit only in docs)            | `timeout: timedelta`; `timeout_seconds` at an API              |
+| `created_at: str` / epoch `int` on a model                 | `created_at: datetime` (tz-aware)                              |
+| `datetime.utcnow()`                                        | `datetime.now(UTC)`                                            |
+| Flush-left `"""` SQL/code block, or `textwrap.dedent`      | `inspect.cleandoc(""" ... """)` at the code's indent (Rule 12) |
+| Stored blob with no version field                          | A `v: Literal[N]` on the model                                 |
 
 ## Reviewing Python (PRs, diffs)
 
