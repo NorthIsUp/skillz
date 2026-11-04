@@ -6,4 +6,13 @@ set -uo pipefail
 ctx=$(for f in "${CLAUDE_PLUGIN_ROOT:?}"/rules/*.md; do
 	grep -q '^alwaysApply: true' "$f" && { cat "$f"; echo; }
 done)
+ctx+=$(cat <<EOF
+
+
+Required skill for this session: \$skillz:visual-formatting.
+Before your first response, read ${CLAUDE_PLUGIN_ROOT}/skills/visual-formatting/SKILL.md
+and apply its instructions to every response throughout this session, without
+waiting for the user to invoke the skill again.
+EOF
+)
 jq -n --arg c "$ctx" '{hookSpecificOutput: {hookEventName: "SessionStart", additionalContext: $c}}'
