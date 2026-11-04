@@ -1,0 +1,16 @@
+#!/usr/bin/env zsh
+#MISE description="Build one PyPI release into an empty output directory"
+# [USAGE] flag "--project <project>" default="." help="Project directory containing pyproject.toml"
+# [USAGE] flag "--out-dir <out_dir>" required=#true help="Empty release output directory"
+set -euo pipefail
+
+if [[ ! -f "$usage_project/pyproject.toml" ]]; then
+  print -u2 -- "No pyproject.toml in $usage_project"
+  exit 1
+fi
+mkdir -p -- "$usage_out_dir"
+if [[ -n "$(ls -A -- "$usage_out_dir")" ]]; then
+  print -u2 -- "Release output directory must be empty: $usage_out_dir"
+  exit 1
+fi
+uv build --no-sources --out-dir "$usage_out_dir" "$usage_project"
