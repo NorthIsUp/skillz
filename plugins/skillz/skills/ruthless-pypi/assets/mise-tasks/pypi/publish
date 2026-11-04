@@ -1,6 +1,9 @@
 #!/usr/bin/env zsh
-#MISE description="Upload one reviewed wheel and sdist to production PyPI using a token"
+#MISE description="Upload one reviewed wheel and sdist to production PyPI"
 # [USAGE] flag "--dist <dist>" required=#true help="Directory containing only the reviewed release artifacts"
+# [USAGE] flag "--auth <auth>" default="token" help="Local token or CI trusted publishing" {
+# [USAGE]   choices "token" "trusted"
+# [USAGE] }
 # [USAGE] flag "--dry-run" help="Check distribution metadata without uploading or requiring a token"
 set -euo pipefail
 
@@ -16,14 +19,19 @@ if (( ${#files} != 2 || ${#wheels} != 1 || ${#sdists} != 1 )) ||
 fi
 
 upload_args=()
+trusted_publishing=never
+if [[ $usage_auth == trusted ]]; then
+  trusted_publishing=always
+  unset UV_PUBLISH_TOKEN PYPI_TOKEN
+fi
 if [[ ${usage_dry_run:-false} == true ]]; then
   upload_args+=(--dry-run)
-else
+elif [[ $usage_auth == token ]]; then
   export UV_PUBLISH_TOKEN="${UV_PUBLISH_TOKEN:-${PYPI_TOKEN:-}}"
   : "${UV_PUBLISH_TOKEN:?Set UV_PUBLISH_TOKEN or PYPI_TOKEN through the configured secret provider}"
 fi
 unset UV_PUBLISH_USERNAME UV_PUBLISH_PASSWORD UV_PUBLISH_INDEX
-uv publish --trusted-publishing never \
+uv publish --trusted-publishing "$trusted_publishing" \
   --publish-url https://upload.pypi.org/legacy/ \
   --check-url https://pypi.org/simple/ \
   "${upload_args[@]}" "${wheels[@]}" "${sdists[@]}"

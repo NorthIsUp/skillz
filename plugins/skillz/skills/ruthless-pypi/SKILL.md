@@ -1,11 +1,12 @@
 ---
 name: ruthless-pypi
-description: Publish Python packages to PyPI using API tokens and reusable mise file tasks. Use when setting up or running a PyPI release, debugging upload authentication, or adding package build and publish tasks.
+description: Publish Python packages to PyPI using local API tokens, GitHub Trusted Publishing, and reusable mise tasks and workflow templates. Use when setting up or running a PyPI release or debugging upload authentication.
 ---
 
 # Ruthless PyPI
 
-Use token-authenticated `uv publish` behind executable mise file tasks. Follow
+Use `uv publish` behind executable mise file tasks: local API tokens and GitHub
+Trusted Publishing in CI. Follow
 the useful `we-love-*` release pattern: select a package, build its distributions,
 upload only those artifacts, and verify the intended version on PyPI.
 
@@ -16,6 +17,11 @@ upload only those artifacts, and verify the intended version on PyPI.
   `UV_PUBLISH_PASSWORD` in the upload process: stale values caused 403s in
   `we-love`. Pass `--trusted-publishing never` for this token workflow. Do not
   silently switch an existing trusted-publishing workflow to tokens.
+- **CI has a fixed publisher identity.** Name the workflow
+  `.github/workflows/publish-pypi.yaml` and use the GitHub environment `pypi`
+  on the publishing job. Grant that job `id-token: write` and use
+  `--auth trusted` (`uv publish --trusted-publishing always`). No token secret
+  is needed for OIDC, and authentication failures must not fall back to tokens.
 - **Secrets come from the environment.** Let mise's configured secret provider
   (fnox where available), the existing login-shell setup, or CI secrets inject
   the token. Never commit it, print it, enable shell tracing, or put it in argv
@@ -74,14 +80,45 @@ mise run pypi:publish --dist dist/release
 
 For a workspace member, set `--project packages/<distribution>` and give each
 release its own output directory. A dry run checks metadata; it does not prove
-that PyPI will accept the token or that an upload happened. Keep CI tokens in
-secrets mapped to `UV_PUBLISH_TOKEN` and call the same mise tasks as local runs.
+that PyPI will accept the token or that an upload happened.
+
+## GitHub workflow template and PyPI setup
+
+Copy [publish-pypi.yaml](assets/github/workflows/publish-pypi.yaml) to exactly
+`.github/workflows/publish-pypi.yaml` in the target repo. The workflow builds
+once, checks metadata, passes those artifacts to the publishing job, and runs
+the mise publish task with `--auth trusted`. Only the publishing job uses the
+`pypi` environment and can request OIDC credentials. Keep packaging and upload
+logic in mise tasks, not inline workflow scripts. Wire the repo's existing
+check/test tasks into the build job before publishing, and adapt `--project`
+for a workspace member. The template runs on a published GitHub release or
+manual dispatch; it does not publish on pull requests.
+
+Create the `pypi` environment in GitHub repository settings. In PyPI's GitHub
+Trusted Publisher form (account Publishing for a new project, or the existing
+project's Publishing settings), enter:
+
+| Form field                           | Value                                                  |
+| ------------------------------------ | ------------------------------------------------------ |
+| PyPI Project Name (new project only) | The distribution's `[project].name`                    |
+| Owner                                | The actual GitHub user or organization owning the repo |
+| Repository name                      | The repo name without its owner or URL                 |
+| Workflow name                        | `publish-pypi.yaml` (filename, not the YAML `name:`)   |
+| Environment name                     | `pypi`                                                 |
+
+The workflow filename and environment must match exactly. For a workspace,
+configure the publisher for each distribution being released. Do not assume
+committing the workflow creates trust on PyPI: configure the form, run the
+workflow, and verify publication using the checks above. Preserve token auth
+for local runs; use an environment-scoped `UV_PUBLISH_TOKEN` CI secret only
+when token-based CI is explicitly chosen instead of Trusted Publishing.
 
 ## Sources
 
 - [uv publishing](https://docs.astral.sh/uv/guides/package/)
 - [uv publish options](https://docs.astral.sh/uv/reference/cli/#uv-publish)
 - [mise task arguments](https://mise.jdx.dev/tasks/task-arguments.html)
+- [PyPI Trusted Publisher setup](https://docs.pypi.org/trusted-publishers/adding-a-publisher/)
 
 Adapted from `we-love/mise.toml`'s package publishing tasks and
 `we-love/AGENTS.md`'s token-authentication and release-verification rules.
