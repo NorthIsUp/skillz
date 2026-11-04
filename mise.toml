@@ -53,6 +53,10 @@ run = "scripts/test-next-option-id.sh"
 description = "Self-check the never-no-verify hook (every commit -n / --no-verify spelling)"
 run = "scripts/test-block-no-verify.sh"
 
+[tasks.test-block-plain-pr-base]
+description = "Self-check the ruthless-stacks hook (hand-set non-default PR bases)"
+run = "scripts/test-block-plain-pr-base.sh"
+
 [tasks.test-sync-rules]
 description = "Self-check sync-rules hook (mirrors rules/, injects only changes)"
 run = "scripts/test-sync-rules.sh"

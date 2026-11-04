@@ -22,7 +22,8 @@ runs. In Clara_V1, hk ended up owning pre-push, so `git lfs pre-push` never ran,
 and git-lfs owned post-checkout, so the worktree bootstrap never ran. The fix
 is a dispatcher per hook with a slot per provider. `references/hooks-install`
 is the template mise task. Worktrees are `skillz:worktree-from-origin-main`.
-Bypassing a hook is `skillz:never-no-verify`.
+Bypassing a hook is `skillz:never-no-verify`. Dependent PRs are
+`skillz:ruthless-stacks`.
 
 ## Phrasing
 
