@@ -1,0 +1,49 @@
+name: Publish to PyPI
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-pypi-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - name: Build release distributions
+        run: mise run pypi:build --project . --out-dir dist/release
+      - name: Check distribution metadata
+        run: mise run pypi:publish --dist dist/release --dry-run
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pypi-distributions
+          path: |
+            dist/release/*.whl
+            dist/release/*.tar.gz
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - uses: actions/download-artifact@v4
+        with:
+          name: pypi-distributions
+          path: dist/release
+      - name: Publish using PyPI Trusted Publishing
+        run: mise run pypi:publish --dist dist/release --auth trusted
