@@ -48,6 +48,13 @@ the always-on rules (as session context), option-ID numbering and the
 for every response, without a manual skill invocation. Agents, slash commands and the `/vf` / `skillz:ask` mod
 are Claude Code only.
 
+## Use this checkout with Pi
+
+The repo's `.pi/settings.json` loads `plugins/skillz/skills` directly from this
+checkout. Start Pi from the repo root and trust the project when prompted;
+use `/reload` after changing settings or skills. Global model and display
+preferences remain inherited from `~/.pi/agent/settings.json`.
+
 ## Day-to-day
 
 ```sh
