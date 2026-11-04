@@ -81,6 +81,7 @@ The rules above are stack-agnostic. The `skillz:ruthless-*` skills hold the per-
 | `mise.toml`, `mise.*.toml`, `mise-tasks/**`                                                  | `skillz:ruthless-mise`                                   |
 | `hk.pkl`                                                                                     | `skillz:ruthless-hk`                                     |
 | git hooks, `mise-tasks/git/**`, branch and PR descriptions                                   | `skillz:ruthless-git`                                    |
+| PR bases, `gh stack`, agent briefs that open PRs                                             | `skillz:ruthless-stacks`                                 |
 | a stack with another `skillz:ruthless-*` skill                                               | that skill                                               |
 
 - Evaluate the implementation against each loaded skill's rules explicitly, not only its reject-on-sight table. Check these every time:

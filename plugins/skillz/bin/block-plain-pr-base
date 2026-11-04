@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# PreToolUse gate for ruthless-stacks: a PR based on anything but the default
+# branch is a `gh stack`, so a hand-set base is blocked rather than left to
+# willpower.
+#
+# Blocks `gh pr create|edit --base/-B <x>` and `gh api .../pulls... -f base=<x>`
+# when <x> is not the default branch (origin/HEAD; main or master outside a
+# repo). shortcut: misses `gh api --input` bodies and GraphQL baseRefName; it
+# is a nudge, not a boundary.
+set -uo pipefail
+
+command=$(jq -r '.tool_input.command // empty' 2>/dev/null)
+[[ -n $command ]] || exit 0
+case $command in *gh*) ;; *) exit 0 ;; esac
+
+# Unwrap quoted spans and glue their words with `_`: a quoted value still reads
+# as `--base x`, while a quoted mention (commit message, grep pattern, PR body)
+# becomes one token that can't match a flag or split a segment.
+flat=$(perl -0pe 's/"((?:[^"\\]|\\.)*)"|\x27([^\x27]*)\x27/my $s = $1 \/\/ $2; $s =~ s{[\s;&|#]}{_}g; $s/ge' <<<"$command")
+
+default=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null)
+default=${default#origin/}
+
+block() {
+	echo "Blocked by skillz rule ruthless-stacks: Dependent PRs must be a gh stack: use \`gh stack ...\` (see the skillz:ruthless-stacks skill)." >&2
+	echo "If the user explicitly granted an exception for this PR, prefix the command with PLAIN_BASE_OK=1." >&2
+	exit 2
+}
+
+check_base() {
+	local base=$1
+	if [[ -n $default ]]; then
+		[[ $base == "$default" ]] || block
+	else
+		[[ $base == main || $base == master ]] || block
+	fi
+}
+
+while IFS= read -r segment; do
+	segment=${segment%%#*}
+	# The human's per-PR grant, as a leading assignment on the gh call itself.
+	grep -Eq '^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*PLAIN_BASE_OK=1[[:space:]]' <<<"$segment" && continue
+	if grep -Eq '(^|[[:space:]/])gh[[:space:]](.*[[:space:]])?pr[[:space:]]+(create|edit)([[:space:]]|$)' <<<"$segment"; then
+		values=$(grep -oE '[[:space:]](--base(=|[[:space:]]+)|-B[[:space:]]*)[^[:space:]]+' <<<"$segment" | sed -E 's/^[[:space:]]*(--base=?|-B)[[:space:]]*//')
+	elif grep -Eq '(^|[[:space:]/])gh[[:space:]](.*[[:space:]])?api[[:space:]]' <<<"$segment" && grep -q '/pulls' <<<"$segment"; then
+		values=$(grep -oE '[[:space:]](-f|-F|--field|--raw-field)(=|[[:space:]]*)base=[^[:space:]]+' <<<"$segment" | sed -E 's/.*base=//')
+	else
+		continue
+	fi
+	while IFS= read -r base; do
+		[[ -n $base ]] && check_base "$base"
+	done <<<"$values"
+done < <(sed -E 's/(&&|\|\||;|\|)/\n/g' <<<"$flat")
+exit 0
