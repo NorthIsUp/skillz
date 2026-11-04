@@ -45,6 +45,10 @@ check 2 "api quoted base field"      "gh api repos/o/r/pulls/9 -X PATCH --raw-fi
 check 2 "grant only in an echo"      'echo PLAIN_BASE_OK=1; gh pr create --base adam/x'
 check 2 "grant only in a message"    'git commit -m "PLAIN_BASE_OK=1" && gh pr create --base adam/x'
 check 2 "grant only in a comment"    'gh pr create --base adam/x # PLAIN_BASE_OK=1'
+check 2 "line continuation"          $'gh pr create --title t \\\n  --base adam/x'
+check 2 "in \$(...)"                 'url=$(gh pr create --base adam/x --fill)'
+check 2 "in backticks"               'url=`gh pr create --base adam/x --fill`'
+check 2 "in a subshell"              '(gh pr create --base adam/x)'
 
 echo "allowed:"
 check 0 "default branch"             'gh pr create --base trunk --fill'
@@ -62,5 +66,7 @@ check 0 "grant after another env"    'GH_REPO=o/r PLAIN_BASE_OK=1 gh api repos/o
 check 0 "mention in a commit msg"    'git commit -m "docs: gh pr create --base adam/x example"'
 check 0 "mention in a grep"          'rg "gh pr create --base foo" .'
 check 0 "-B inside a body"           'gh pr create --body "use -B adam/x" --fill'
+check 0 "quoted flag-like title"     'gh pr create --title "-Bx" --fill'
+check 0 "default in a subshell"      '(gh pr create --base trunk)'
 
 [[ $fails == 0 ]] && echo "all passed" || { echo "$fails failed"; exit 1; }

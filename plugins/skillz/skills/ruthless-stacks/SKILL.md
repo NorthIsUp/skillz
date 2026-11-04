@@ -14,8 +14,9 @@ alwaysApply: true
 
 A PR whose base is not the default branch is created and maintained with
 `gh stack` (the gh-stack extension: `init`, `add`, `submit`, `sync`), never a
-hand-set `--base` or a manual retarget. Hand-chained bases don't follow a
-rebase or merge below them, so they drift and retarget wrong. Phrasing
+hand-set `--base` or a manual retarget. A hand-set base doesn't follow the PR
+below it: when that one squash-merges, its commits come back as duplicates that
+need a manual rebase. Phrasing
 ("stacked on #N", not "based on #N") is `skillz:ruthless-git`.
 
 ## The bar
