@@ -7,51 +7,27 @@
 # Only IDs written in the shapes the rule mandates count (**C1**, "| C1", "- C1",
 # "(C1)"). Over-counting is harmless — it burns a letter — while under-counting
 # collides, so the patterns lean inclusive.
+#
+# Runs on every prompt, so bash parses stdin with builtins and execs a single jq:
+# a process spawn can cost 30-250ms under endpoint security, and the old
+# per-prefix subshells hit the 30s hook timeout.
 set -uo pipefail
 
-transcript=$(sed -n 's/.*"transcript_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
-[ -n "$transcript" ] && [ -r "$transcript" ] || exit 0
+IFS= read -rd '' input
+[[ $input =~ \"transcript_path\"[[:space:]]*:[[:space:]]*\"([^\"]*)\" ]] || exit 0
+transcript=${BASH_REMATCH[1]}
+[ -r "$transcript" ] || exit 0
 
-# Bijective base-26: A=1, Z=26, AA=27. Empty string is 0, so no-IDs-yet yields A.
-to_num() {
-	local s=$1 n=0 i c
-	for ((i = 0; i < ${#s}; i++)); do
-		printf -v c '%d' "'${s:i:1}"
-		n=$((n * 26 + c - 64))
-	done
-	printf '%d' "$n"
-}
-
-from_num() {
-	local n=$1 r out=
-	while ((n > 0)); do
-		r=$(((n - 1) % 26))
-		out=$(printf "\\$(printf '%03o' $((65 + r)))")$out
-		n=$(((n - 1) / 26))
-	done
-	printf '%s' "$out"
-}
-
-# Model prose only. Tool-call inputs ride in the same assistant message, so a
+# Model prose only: tool-call inputs ride in the same assistant message, so a
 # bash command or a diff mentioning S3 or B2 would otherwise burn letters.
-say_text() {
-	if command -v jq >/dev/null 2>&1; then
-		jq -r 'select(.type=="assistant") | .message.content[]?
-		       | select(.type=="text") | .text' "$transcript" 2>/dev/null
-	else
-		grep '"type":"assistant"' "$transcript" 2>/dev/null
-	fi
-}
-
-max=0
-while IFS= read -r prefix; do
-	n=$(to_num "$prefix")
-	((n > max)) && max=$n
-done < <(
-	say_text |
-		grep -oE '(^|[^A-Za-z0-9_])[A-Z]{1,2}[0-9]+(\*\*|[ ]*[·—:)|,]|$)' |
-		grep -oE '[A-Z]{1,2}' | sort -u
-)
-
-printf 'Next option-group prefix: %s. Any options, choices, or examples you present this turn are %s1, %s2, … (see unique-option-numbering).\n' \
-	"$(from_num $((max + 1)))" "$(from_num $((max + 1)))" "$(from_num $((max + 1)))"
+# Prefixes are bijective base-26 (A=1, Z=26, AA=27); no IDs yet yields A.
+exec jq -Rrn '
+  [ inputs | fromjson? | select(.type == "assistant") | .message.content[]?
+    | select(.type == "text") | .text
+    | scan("(?:^|[^A-Za-z0-9_])([A-Z]{1,2})[0-9]+(?:\\*\\*|[ ]*[·—:)|,]|$)") | .[0]
+    | reduce explode[] as $c (0; . * 26 + $c - 64) ]
+  | (max // 0) + 1
+  | [ recurse(if . > 0 then (. - 1) / 26 | floor else empty end) | select(. > 0) | (. - 1) % 26 + 65 ]
+  | reverse | implode as $p
+  | "Next option-group prefix: \($p). Any options, choices, or examples you present this turn are \($p)1, \($p)2, … (see unique-option-numbering)."
+' "$transcript" 2>/dev/null
