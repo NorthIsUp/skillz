@@ -1,0 +1,29 @@
+#!/usr/bin/env zsh
+#MISE description="Upload one reviewed wheel and sdist to production PyPI using a token"
+# [USAGE] flag "--dist <dist>" required=#true help="Directory containing only the reviewed release artifacts"
+# [USAGE] flag "--dry-run" help="Check distribution metadata without uploading or requiring a token"
+set -euo pipefail
+
+files=("$usage_dist"/*(DN))
+# uv build adds a .gitignore alongside the release artifacts.
+files=("${(@)files:#*/.gitignore}")
+wheels=("$usage_dist"/*.whl(N))
+sdists=("$usage_dist"/*.tar.gz(N))
+if (( ${#files} != 2 || ${#wheels} != 1 || ${#sdists} != 1 )) ||
+  [[ ! -f "$wheels[1]" || ! -f "$sdists[1]" ]]; then
+  print -u2 -- "Expected exactly one wheel and one sdist in $usage_dist"
+  exit 1
+fi
+
+upload_args=()
+if [[ ${usage_dry_run:-false} == true ]]; then
+  upload_args+=(--dry-run)
+else
+  export UV_PUBLISH_TOKEN="${UV_PUBLISH_TOKEN:-${PYPI_TOKEN:-}}"
+  : "${UV_PUBLISH_TOKEN:?Set UV_PUBLISH_TOKEN or PYPI_TOKEN through the configured secret provider}"
+fi
+unset UV_PUBLISH_USERNAME UV_PUBLISH_PASSWORD UV_PUBLISH_INDEX
+uv publish --trusted-publishing never \
+  --publish-url https://upload.pypi.org/legacy/ \
+  --check-url https://pypi.org/simple/ \
+  "${upload_args[@]}" "${wheels[@]}" "${sdists[@]}"
