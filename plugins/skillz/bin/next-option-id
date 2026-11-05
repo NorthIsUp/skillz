@@ -8,9 +8,13 @@
 # "(C1)"). Over-counting is harmless — it burns a letter — while under-counting
 # collides, so the patterns lean inclusive.
 #
-# Runs on every prompt, so bash parses stdin with builtins and execs a single jq:
-# a process spawn can cost 30-250ms under endpoint security, and the old
-# per-prefix subshells hit the 30s hook timeout.
+# Reads the transcript newest-first and stops at this hook's own last output:
+# that prefix is already one past every ID written before it, so only the turn
+# since then can raise it. A full scan only happens when there is no checkpoint
+# yet (a new session, or a hook run that timed out and left none).
+#
+# Runs on every prompt, so it stays at two processes (reverse + jq): a spawn
+# can cost 30-250ms under endpoint security.
 set -uo pipefail
 
 IFS= read -rd '' input
@@ -18,16 +22,26 @@ IFS= read -rd '' input
 transcript=${BASH_REMATCH[1]}
 [ -r "$transcript" ] || exit 0
 
+if command -v tac >/dev/null; then reverse=(tac); else reverse=(/usr/bin/tail -r); fi
+
 # Model prose only: tool-call inputs ride in the same assistant message, so a
 # bash command or a diff mentioning S3 or B2 would otherwise burn letters.
 # Prefixes are bijective base-26 (A=1, Z=26, AA=27); no IDs yet yields A.
-exec jq -Rrn '
-  [ inputs | fromjson? | select(.type == "assistant") | .message.content[]?
-    | select(.type == "text") | .text
-    | scan("(?:^|[^A-Za-z0-9_])([A-Z]{1,3})[0-9]+(?:\\*\\*|[ ]*[·—:)|,]|$)") | .[0]
-    | reduce explode[] as $c (0; . * 26 + $c - 64) ]
-  | (max // 0) + 1
+"${reverse[@]}" "$transcript" | jq -Rrn '
+  def num: reduce explode[] as $c (0; . * 26 + $c - 64);
+  def checkpoint: select(.type == "attachment" and .attachment.hookEvent == "UserPromptSubmit")
+    | .attachment.content // "" | capture("^Next option-group prefix: (?<p>[A-Z]+)\\.").p | num;
+  def ids: select(.type == "assistant") | .message.content[]? | select(.type == "text") | .text
+    | scan("(?:^|[^A-Za-z0-9_])([A-Z]{1,3})[0-9]+(?:\\*\\*|[ ]*[·—:)|,]|$)") | .[0] | num + 1;
+  label $out
+  | foreach ((inputs | fromjson?), null) as $v ({next: 1};
+      if $v == null then .done = true
+      else ([$v | checkpoint] | first) as $c
+        | if $c then .next = ([.next, $c] | max) | .done = true
+          else .next = ([.next, ($v | ids)] | max) end
+      end;
+      if .done then .next, break $out else empty end)
   | [ recurse(if . > 0 then (. - 1) / 26 | floor else empty end) | select(. > 0) | (. - 1) % 26 + 65 ]
   | reverse | implode as $p
   | "Next option-group prefix: \($p). Any options, choices, or examples you present this turn are \($p)1, \($p)2, … (see unique-option-numbering)."
-' "$transcript" 2>/dev/null
+' 2>/dev/null
