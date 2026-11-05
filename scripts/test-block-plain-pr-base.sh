@@ -14,9 +14,18 @@ git -C "$repo" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/trunk
 
 fails=0
 # check <expected-exit> <label> <command> [cwd]
+# JSON-encode a command with builtins: a jq per case was most of the test's runtime.
+payload() {
+	local c=${1//\\/\\\\}
+	c=${c//\"/\\\"}
+	c=${c//$'\n'/\\n}
+	c=${c//$'\t'/\\t}
+	c=${c//$'\r'/\\r}
+	printf '{"tool_name":"Bash","tool_input":{"command":"%s"}}' "$c"
+}
 check() {
   local want=$1 label=$2 got
-  (cd "${4:-$repo}" && jq -n --arg c "$3" '{tool_name:"Bash",tool_input:{command:$c}}' | "$hook" >/dev/null 2>&1)
+  (cd "${4:-$repo}" && payload "$3" | "$hook" >/dev/null 2>&1)
   got=$?
   if [[ $got == "$want" ]]; then
     printf '  ok   %s\n' "$label"
