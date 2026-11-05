@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # Mirror the plugin's rules/ into ~/.claude/rules, and re-inject any rule that
 # changed since this session last looked.
 #
@@ -6,40 +6,65 @@
 # /reload-plugins, and InstructionsLoaded can't add context — a UserPromptSubmit
 # hook printing to stdout is the only way a rule edit reaches a live session.
 #
-# First run of a session only records hashes: SessionStart already loaded the
+# First run of a session only records checksums: SessionStart already loaded the
 # rules, so re-printing them would be duplicate context.
-set -uo pipefail
+#
+# Runs on every prompt, so the steady state is one cksum and builtins: copies
+# happen only when a rule changed, and checksums are keyed by file name so a
+# plugin upgrade (a new CLAUDE_PLUGIN_ROOT) with identical rules is not news.
+set -u
 
 # rules/*.md are symlinks into skills/<name>/SKILL.md so each rule is also an
 # invocable skill; cp follows them, so the mirror gets real files.
 src="${CLAUDE_PLUGIN_ROOT:?}/rules"
 dst="${HOME}/.claude/rules"
-mkdir -p "$dst" || exit 0
+cd "$src" 2>/dev/null || exit 0
+new=$(cksum ./*.md) || exit 0
 
 # session_id, so two sessions each get their own view of what's already seen
-session=$(sed -n 's/.*"session_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
-state="${TMPDIR:-/tmp}/skillz-rules-${session:-default}.sha"
+IFS= read -rd '' input
+[[ $input =~ \"session_id\"[[:space:]]*:[[:space:]]*\"([^\"]*)\" ]] && session=${BASH_REMATCH[1]}
+state="${TMPDIR:-/tmp}/skillz-rules-${session:-default}.cksum"
+mirror="$dst/.skillz-rules.cksum"
 
-for f in "$dst"/skillz-*.md; do
-	[ -e "$f" ] || continue
-	[ -e "$src/${f##*/skillz-}" ] || rm -f "$f"
+old_mirror=
+[ -r "$mirror" ] && IFS= read -rd '' old_mirror <"$mirror"
+stale=0
+[[ $new == "${old_mirror%$'\n'}" ]] || stale=1
+for f in *.md; do
+	((stale)) && break
+	[ -e "$dst/skillz-$f" ] || stale=1
 done
-for f in "$src"/*.md; do
-	cp -f "$f" "$dst/skillz-${f##*/}"
-done
+if ((stale)); then
+	mkdir -p "$dst" || exit 0
+	for f in "$dst"/skillz-*.md; do
+		[ -e "$f" ] || continue
+		[ -e "${f##*/skillz-}" ] || rm -f "$f"
+	done
+	for f in *.md; do
+		cp -f "$f" "$dst/skillz-$f"
+	done
+	printf '%s\n' "$new" >"$mirror"
+fi
 
-new=$(shasum "$src"/*.md) || exit 0
-old=$(cat "$state" 2>/dev/null)
+old=
+[ -r "$state" ] && IFS= read -rd '' old <"$state"
+old=${old%$'\n'}
+[[ $new == "$old" ]] && exit 0
 printf '%s\n' "$new" >"$state"
 [ -n "$old" ] || exit 0
 
-changed=$(comm -13 <(printf '%s\n' "$old" | sort) <(printf '%s\n' "$new" | sort) | sed 's/^[0-9a-f]*  //')
-[ -n "$changed" ] || exit 0
-
-echo "These rule files changed on disk since they were loaded. The versions below supersede the copies in your context:"
-while IFS= read -r path; do
-	printf '\n<updated-rule path="%s">\n' "$path"
-	cat "$path"
+header=0
+while IFS= read -r line; do
+	case $'\n'$old$'\n' in *$'\n'"$line"$'\n'*) continue ;; esac
+	# cksum prints "<crc> <size> ./<name>"
+	name=${line#* * ./}
+	if ((!header)); then
+		echo "These rule files changed on disk since they were loaded. The versions below supersede the copies in your context:"
+		header=1
+	fi
+	printf '\n<updated-rule path="%s">\n' "$src/$name"
+	cat "$name"
 	printf '</updated-rule>\n'
-done <<<"$changed"
+done <<<"$new"
 exit 0

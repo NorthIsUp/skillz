@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # PreToolUse gate for never-no-verify: a failing hook is a finding to
 # root-cause, so the bypass is blocked rather than left to willpower.
 #
@@ -6,9 +6,12 @@
 # `git` and the flag is blocked even when it only appears in the description.
 # The short form `git commit -n` needs the parsed command: it can sit in a flag
 # cluster (`-qn`, `-an`) or after `git -C <dir>`, and `push -n` is a dry run.
+#
+# Runs before every Bash call, so a command that doesn't mention both `git` and
+# `commit` is decided on builtins alone, without starting jq.
 set -uo pipefail
 
-payload=$(cat)
+IFS= read -rd '' payload
 
 # The human's per-commit grant, spelled out in the command itself.
 case $payload in *NO_VERIFY_OK=1*) exit 0 ;; esac
@@ -21,16 +24,18 @@ block() {
 }
 
 case $payload in *git*--no-verify*) block ;; esac
+case $payload in *git*commit*) ;; *) exit 0 ;; esac
 
 command=$(jq -r '.tool_input.command // empty' <<<"$payload" 2>/dev/null)
 [[ -n $command ]] || exit 0
 
 # Quoted text (commit messages, greps) can't carry a flag; drop it, then check
 # each shell segment that runs `git [global opts] commit`.
+git_commit='(^|[[:space:]])git([[:space:]]+-[^[:space:]]+([[:space:]]+[^-[:space:]][^[:space:]]*)?)*[[:space:]]+commit([[:space:]]|$)'
+short_n='[[:space:]]commit([[:space:]].*)?[[:space:]]-[A-Za-z]*n[A-Za-z]*([[:space:]]|$)'
 unquoted=$(sed -E "s/'[^']*'//g; s/\"([^\"\\\\]|\\\\.)*\"//g" <<<"$command")
 while IFS= read -r segment; do
-	if grep -Eq '(^|[[:space:]])git([[:space:]]+-[^[:space:]]+([[:space:]]+[^-[:space:]][^[:space:]]*)?)*[[:space:]]+commit([[:space:]]|$)' <<<"$segment" &&
-		grep -Eq '[[:space:]]commit([[:space:]].*)?[[:space:]]-[A-Za-z]*n[A-Za-z]*([[:space:]]|$)' <<<"$segment"; then
+	if [[ $segment =~ $git_commit && $segment =~ $short_n ]]; then
 		block
 	fi
 done < <(sed -E 's/(&&|\|\||;|\|)/\n/g' <<<"$unquoted")

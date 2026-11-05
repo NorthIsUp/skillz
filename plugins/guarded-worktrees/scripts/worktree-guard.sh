@@ -1,13 +1,18 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # PreToolUse gate on worktree creation, for both routes:
 #   Bash `git worktree add` — refuse a main/master branch or a local base ref
 #   EnterWorktree           — refuse a main/master name (baseRef=fresh already
 #                             pins the base to origin/<default>)
 # Both fetch origin/<ref> first, at most once per WORKTREE_GUARD_FETCH_TTL.
 # Exit 2 blocks the call (stderr goes to the model); exit 1 only warns.
-payload=$(cat)
-tool=$(jq -r '.tool_name // ""' <<<"$payload")
-cwd=$(jq -r '.cwd // ""' <<<"$payload")
+#
+# Runs before every Bash call, so a payload that can't be EnterWorktree or a
+# `worktree add` is waved through on builtins (a bare "worktree" also matches
+# any cwd under a *.worktrees dir); the rest is one jq call for every field.
+IFS= read -rd '' payload
+case $payload in *EnterWorktree*|*worktree*add*) ;; *) exit 0 ;; esac
+tool='' cwd='' cmd='' name='' path=''
+eval "$(jq -r '@sh "tool=\(.tool_name // "") cwd=\(.cwd // "") cmd=\(.tool_input.command // "") name=\(.tool_input.name // "") path=\(.tool_input.path // "")"' <<<"$payload")"
 repo=${cwd:-$PWD}
 
 # Fetch origin/$1 unless this hook already fetched inside the TTL.
@@ -30,8 +35,6 @@ fetch_if_stale() {
 }
 
 if [[ $tool == EnterWorktree ]]; then
-  name=$(jq -r '.tool_input.name // ""' <<<"$payload")
-  path=$(jq -r '.tool_input.path // ""' <<<"$payload")
   if [[ $name =~ ^(main|master)$ ]]; then
     echo "worktree named $name blocked — name it after the feature" >&2
     exit 2
@@ -45,7 +48,6 @@ fi
 
 # Only a real invocation counts: the phrase must start a command, not sit inside
 # a quoted string (a grep pattern, an echo, this file).
-cmd=$(jq -r '.tool_input.command // ""' <<<"$payload")
 invocation="(^|[;&|(]|"$'\n'")[[:space:]]*git[[:space:]]+worktree[[:space:]]+add"
 [[ $cmd =~ $invocation ]] || exit 0
 

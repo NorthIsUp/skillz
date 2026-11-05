@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # Unstage any staged SKILL.md that is a symlink.
 #
 # Symlinked-in skills have a SKILL.md that points into ~/src/dotfiles on the
@@ -12,16 +12,20 @@
 #   unstage-symlink-skills.sh --check    exit 1 if any are staged; touch nothing
 set -euo pipefail
 
-symlinks=$(git ls-files --stage | grep '^120000 ' | cut -f2 | grep '/SKILL\.md$' || true)
+# Runs on every commit: one git call, filtered with builtins.
+symlinks=()
+while IFS=$'\t' read -r meta path; do
+	[[ $meta == 120000\ * ]] && symlinks+=("$path")
+done < <(git ls-files --stage -- '*/SKILL.md')
 
-[ -z "$symlinks" ] && exit 0
+((${#symlinks[@]})) || exit 0
 
 if [ "${1:-}" = "--check" ]; then
 	echo "symlink SKILL.md staged — run 'hk fix' to unstage, then commit:" >&2
-	echo "$symlinks" | sed 's/^/  /' >&2
+	printf '  %s\n' "${symlinks[@]}" >&2
 	exit 1
 fi
 
 echo "unstaging symlinked SKILL.md (machine-specific, not committed):"
-echo "$symlinks" | sed 's/^/  /'
-echo "$symlinks" | tr '\n' '\0' | xargs -0 git restore --staged --
+printf '  %s\n' "${symlinks[@]}"
+git restore --staged -- "${symlinks[@]}"

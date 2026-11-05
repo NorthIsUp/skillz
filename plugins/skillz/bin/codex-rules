@@ -1,18 +1,20 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # Codex has no ~/.claude/rules, so the always-on rules ride in as SessionStart
 # context; the path-scoped and description-triggered ones stay reachable as skills.
+#
+# One awk pass picks the alwaysApply rules, rather than a grep and cat per file.
 set -uo pipefail
 
-ctx=$(for f in "${CLAUDE_PLUGIN_ROOT:?}"/rules/*.md; do
-	grep -q '^alwaysApply: true' "$f" && { cat "$f"; echo; }
-done)
-ctx+=$(cat <<EOF
-
+ctx=$(awk '
+	FNR == 1 { if (keep) printf "%s\n", buf; buf = ""; keep = 0 }
+	{ buf = buf $0 "\n" }
+	/^alwaysApply: true/ { keep = 1 }
+	END { if (keep) printf "%s\n", buf }
+' "${CLAUDE_PLUGIN_ROOT:?}"/rules/*.md)
+ctx+="
 
 Required skill for this session: \$skillz:visual-formatting.
 Before your first response, read ${CLAUDE_PLUGIN_ROOT}/skills/visual-formatting/SKILL.md
 and apply its instructions to every response throughout this session, without
-waiting for the user to invoke the skill again.
-EOF
-)
+waiting for the user to invoke the skill again."
 jq -n --arg c "$ctx" '{hookSpecificOutput: {hookEventName: "SessionStart", additionalContext: $c}}'

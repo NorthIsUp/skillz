@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # Install a macOS handler for pbcopy:// URIs (used by the copy-links rule).
 #
 # Builds a small AppleScript applet at ~/Applications/pbcopy-uri-handler.app
@@ -8,7 +8,7 @@
 # script is copied into the bundle).
 set -euo pipefail
 
-if [[ "$(uname)" != "Darwin" ]]; then
+if [[ $OSTYPE != darwin* ]]; then
   echo "macOS only (uses pbcopy + LaunchServices)" >&2
   exit 1
 fi
