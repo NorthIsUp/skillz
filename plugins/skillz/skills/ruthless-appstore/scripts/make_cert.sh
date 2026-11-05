@@ -21,10 +21,18 @@ mkdir -p "$dir"
 base="$dir/$prefix"
 [ -e "$base.key" ] && { echo "$base.key exists; move it aside to mint a new cert" >&2; exit 1; }
 
+# Minting the API token (a uv-run Python start) and generating the key are
+# independent, so the token is minted while openssl works. CSR-only never mints.
+if [ "${CSR_ONLY:-}" != 1 ]; then
+  uv run -q "$here/asc.py" >"$base.token" &
+  minting=$!
+fi
 openssl req -new -newkey rsa:2048 -nodes -keyout "$base.key" -out "$base.csr" -subj "/CN=$prefix/C=US" 2>/dev/null
 [ "${CSR_ONLY:-}" = 1 ] && { echo "$base.csr ready for developer.apple.com"; exit 0; }
 
-token=$(uv run -q "$here/asc.py")
+wait "$minting"
+read -r token <"$base.token"
+rm "$base.token"
 jq -n --arg t "$type" --rawfile csr "$base.csr" \
   '{data: {type: "certificates", attributes: {certificateType: $t, csrContent: $csr}}}' \
   | curl -fsS -X POST https://api.appstoreconnect.apple.com/v1/certificates \
@@ -40,4 +48,5 @@ openssl version | grep -q '^OpenSSL 3' && legacy=-legacy
 openssl x509 -inform DER -in "$base.cer" -out "$base.pem"
 openssl pkcs12 -export $legacy -inkey "$base.key" -in "$base.pem" -out "$base.p12" -passout "file:$dir/p12.pass"
 rm "$base.pem"
-echo "$type cert $(cat "$base.id") -> $base.p12"
+read -r cert_id <"$base.id"
+echo "$type cert $cert_id -> $base.p12"

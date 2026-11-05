@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from concurrent.futures import ThreadPoolExecutor
 
 from asc import AscError, Client
 
@@ -30,9 +31,13 @@ def main() -> int:
     args = parser.parse_args()
     client = Client.from_args(args)
 
+    # Two independent GETs over sync `requests`: threads overlap the round trips
+    # instead of paying for them one after the other.
     try:
-        apps = client.apps()
-        bundles = client.bundle_ids()
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            apps_f = pool.submit(client.apps)
+            bundles_f = pool.submit(client.bundle_ids)
+            apps, bundles = apps_f.result(), bundles_f.result()
     except AscError as e:
         print(e, file=sys.stderr)
         return 2

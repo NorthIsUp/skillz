@@ -26,10 +26,10 @@ for p in $pids; do wait "$p" || fail=1; done
 for f in "$out"/*.log; do
   grep -E '^(✘|.*Test run with)' "$f" || { echo "no summary in $f:"; tail -40 "$f"; fail=1; }
 done
-[ "$fail" = 0 ] || { cat "$out"/*.log | grep -E '✘|error' | head -200; exit 1; }
+[ "$fail" = 0 ] || { grep -hE '✘|error' "$out"/*.log | head -200; exit 1; }
 
 # A filter typo would drop tests silently; every listed test must have run in some shard.
 want=$(grep -c "^$mod\\." .build/tests.txt)
-got=$(cat "$out"/*.log | sed -nE 's/.*Test run with ([0-9]+) tests?.*/\1/p' | awk '{ s += $1 } END { print s + 0 }')
+got=$(sed -nE 's/.*Test run with ([0-9]+) tests?.*/\1/p' "$out"/*.log | awk '{ s += $1 } END { print s + 0 }')
 echo "$n shards ran $got of $want tests"
 [ "$got" = "$want" ]
