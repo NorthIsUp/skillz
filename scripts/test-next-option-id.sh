@@ -43,6 +43,24 @@ expect "$tmp/zz.jsonl" AAA
 say '"pick **AAZ1**"' >"$tmp/aaz.jsonl"
 expect "$tmp/aaz.jsonl" ABA
 
+hooked() { printf '{"type":"attachment","attachment":{"type":"hook_success","hookEvent":"UserPromptSubmit","content":"Next option-group prefix: %s. Any options, choices, or examples you present this turn are %s1, %s2"}}\n' "$1" "$1" "$1"; }
+
+# The newest hook output is a checkpoint: lines before it are never read
+# (the Z9 would win otherwise), a recap of an older ID after it changes nothing,
+# and a new group after it advances past it.
+{
+	say '"pick **Z9**"'
+	hooked M
+	say '"still open: **C1** or **C2**"'
+} >"$tmp/checkpoint.jsonl"
+expect "$tmp/checkpoint.jsonl" M
+
+{
+	hooked M
+	say '"say **M1** or **M2**"'
+} >"$tmp/after.jsonl"
+expect "$tmp/after.jsonl" N
+
 say '"nothing to choose here"' >"$tmp/none.jsonl"
 expect "$tmp/none.jsonl" A
 
