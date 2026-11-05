@@ -11,8 +11,12 @@ git config user.email >/dev/null 2>&1 \
 
 marketplace=".claude-plugin/marketplace.json"
 released_any=0
+# One round trip for every remote tag, instead of an ls-remote per plugin.
+remote_tags=$'\n'$(git ls-remote --tags --refs origin 2>/dev/null | cut -f2)$'\n'
 
-jq -r '.plugins[] | "\(.name) \(.version // "")"' "$marketplace" | while read -r name version; do
+# Process substitution, not a pipe: the loop must run in this shell so
+# released_any survives it.
+while read -r name version; do
   if [[ -z "$version" ]]; then
     echo "skip: $name has no version in marketplace.json"
     continue
@@ -21,7 +25,7 @@ jq -r '.plugins[] | "\(.name) \(.version // "")"' "$marketplace" | while read -r
   tag="${name}-v${version}"
 
   if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null \
-    || git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1; then
+    || [[ $remote_tags == *$'\n'"refs/tags/${tag}"$'\n'* ]]; then
     echo "skip: ${tag} already exists"
     continue
   fi
@@ -36,6 +40,6 @@ jq -r '.plugins[] | "\(.name) \(.version // "")"' "$marketplace" | while read -r
     --target "$(git rev-parse HEAD)"
 
   released_any=1
-done
+done < <(jq -r '.plugins[] | "\(.name) \(.version // "")"' "$marketplace")
 
 [[ $released_any -eq 0 ]] && echo "no new plugin versions to release" || true

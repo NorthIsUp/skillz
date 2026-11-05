@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # tmux-resurrect @resurrect-hook-post-restore-all
 #
 # Reads claude.tsv (from claude-presave.sh) and sends `claude --resume <id>`
@@ -21,10 +21,9 @@ fi
 while IFS=$'\t' read -r sname widx pidx _cwd sid; do
     [ -n "$sid" ] || continue
     target="${sname}:${widx}.${pidx}"
-    tmux display-message -t "$target" -p '' >/dev/null 2>&1 || continue
-
-    # If pane already has claude (e.g. continuum double-restore), skip.
-    cur=$(tmux display-message -t "$target" -p '#{pane_current_command}' 2>/dev/null || true)
+    # A missing pane fails the lookup and is skipped; one that already runs
+    # claude (e.g. continuum double-restore) is left alone.
+    cur=$(tmux display-message -t "$target" -p '#{pane_current_command}' 2>/dev/null) || continue
     case "$cur" in
         claude|*claude*) continue ;;
     esac

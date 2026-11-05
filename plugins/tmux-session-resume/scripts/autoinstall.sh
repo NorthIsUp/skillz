@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # Claude SessionStart hook: ensure the tmux managed block is installed and
 # points at this plugin root. Cheap no-op when already up to date.
 set -eu
@@ -12,8 +12,9 @@ done
 conf="${conf:-}"
 
 # Fast path: block already references this plugin_root → nothing to do.
-if [ -n "$conf" ] && grep -qF "# Plugin root: $plugin_root" "$conf" 2>/dev/null; then
-    exit 0
+if [ -n "$conf" ]; then
+    IFS= read -rd '' text <"$conf" || true
+    [[ $text == *"# Plugin root: $plugin_root"* ]] && exit 0
 fi
 
 # Otherwise (missing, stale, or relocated plugin) install/refresh. Run in

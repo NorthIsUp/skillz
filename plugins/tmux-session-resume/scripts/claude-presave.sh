@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # tmux-resurrect @resurrect-hook-post-save-all
 #
 # For every pane, if a claude session marker exists (written by
@@ -20,8 +20,8 @@ mkdir -p "$state_root"
 
 tmux list-panes -a -F '#{session_name}	#{window_index}	#{pane_index}	#{pane_current_path}	#{pane_current_command}' \
 | while IFS=$'\t' read -r sname widx pidx cwd _cmd; do
-    safe_key=$(printf '%s__%s__%s' "$sname" "$widx" "$pidx" | tr -c 'A-Za-z0-9_.-' '_')
-    marker="$marker_dir/$safe_key"
+    key="${sname}__${widx}__${pidx}"
+    marker="$marker_dir/${key//[^A-Za-z0-9_.-]/_}"
     [ -f "$marker" ] || continue
 
     IFS=$'\t' read -r sid marker_cwd _ts < "$marker" || continue

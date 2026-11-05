@@ -1,47 +1,63 @@
-#!/usr/bin/env bash
+#!/bin/sh
 # Validate that every SKILL.md has required frontmatter (name + description),
 # that plugin.json / marketplace.json parse as JSON, and that every plugin
 # referenced from marketplace.json actually exists on disk.
-set -euo pipefail
+#
+# Runs on every commit (hk), so it is one python process rather than a handful
+# of greps per skill.
+cd "$(dirname "$0")/.." || exit 1
+exec python3 - <<'PY'
+import glob, json, os, re, sys
 
-cd "$(dirname "$0")/.."
+ok = True
 
-fail=0
-err() { echo "ERROR: $*" >&2; fail=1; }
 
-# 1. SKILL.md frontmatter
-while IFS= read -r -d '' skill; do
-  if ! head -1 "$skill" | grep -qx -- "---"; then
-    err "$skill: missing YAML frontmatter (must start with ---)"
-    continue
-  fi
-  fm=$(awk '/^---$/{c++; next} c==1{print} c==2{exit}' "$skill")
-  for field in name description; do
-    if ! grep -qE "^${field}:" <<<"$fm"; then
-      err "$skill: missing frontmatter field '${field}'"
-    fi
-  done
-  desc=$(grep -E "^description:" <<<"$fm" | sed 's/^description: *//' || true)
-  if [[ ${#desc} -gt 1024 ]]; then
-    err "$skill: description is ${#desc} chars (max 1024 for Claude skills)"
-  fi
-done < <(find plugins -name SKILL.md -print0)
+def err(msg):
+    global ok
+    print(f"ERROR: {msg}", file=sys.stderr)
+    ok = False
+
+
+# 1. SKILL.md frontmatter. Symlinked SKILL.md files count; symlinked dirs are
+# not descended, matching `find`.
+for root, _dirs, files in os.walk("plugins"):
+    if "SKILL.md" not in files:
+        continue
+    skill = os.path.join(root, "SKILL.md")
+    try:
+        lines = open(skill, encoding="utf-8").read().splitlines()
+    except OSError:
+        lines = []
+    if not lines or lines[0] != "---":
+        err(f"{skill}: missing YAML frontmatter (must start with ---)")
+        continue
+    fm = []
+    for line in lines[1:]:
+        if line == "---":
+            break
+        fm.append(line)
+    for field in ("name", "description"):
+        if not any(line.startswith(f"{field}:") for line in fm):
+            err(f"{skill}: missing frontmatter field '{field}'")
+    desc = next((re.sub(r"^description: *", "", l) for l in fm if l.startswith("description:")), "")
+    if len(desc) > 1024:
+        err(f"{skill}: description is {len(desc)} chars (max 1024 for Claude skills)")
 
 # 2. JSON manifests parse
-for f in .claude-plugin/marketplace.json plugins/*/.claude-plugin/plugin.json; do
-  [[ -e $f ]] || continue
-  if ! python3 -c "import json,sys; json.load(open('$f'))" 2>/dev/null; then
-    err "$f: invalid JSON"
-  fi
-done
+for f in [".claude-plugin/marketplace.json", *sorted(glob.glob("plugins/*/.claude-plugin/plugin.json"))]:
+    if not os.path.exists(f):
+        continue
+    try:
+        json.load(open(f))
+    except (OSError, ValueError):
+        err(f"{f}: invalid JSON")
 
 # 3. Marketplace plugin sources resolve
-if [[ -f .claude-plugin/marketplace.json ]]; then
-  python3 - <<'PY' || fail=1
-import json, os, sys
-m = json.load(open(".claude-plugin/marketplace.json"))
+try:
+    m = json.load(open(".claude-plugin/marketplace.json"))
+except (OSError, ValueError):
+    m = {}
 root = m.get("metadata", {}).get("pluginRoot", "")
-ok = True
 for p in m.get("plugins", []):
     src = p.get("source")
     if isinstance(src, str) and src.startswith("./"):
@@ -51,13 +67,9 @@ for p in m.get("plugins", []):
     else:
         continue  # remote source, skip
     if not os.path.isdir(path):
-        print(f"ERROR: marketplace plugin '{p.get('name')}' source not found: {path}", file=sys.stderr)
-        ok = False
+        err(f"marketplace plugin '{p.get('name')}' source not found: {path}")
     elif not os.path.isfile(os.path.join(path, ".claude-plugin", "plugin.json")):
-        print(f"ERROR: plugin '{p.get('name')}' missing .claude-plugin/plugin.json at {path}", file=sys.stderr)
-        ok = False
+        err(f"plugin '{p.get('name')}' missing .claude-plugin/plugin.json at {path}")
+
 sys.exit(0 if ok else 1)
 PY
-fi
-
-exit $fail

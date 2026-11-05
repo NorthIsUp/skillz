@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # PreToolUse gate for ruthless-stacks: a PR based on anything but the default
 # branch is a `gh stack`, so a hand-set base is blocked rather than left to
 # willpower.
@@ -8,20 +8,21 @@
 # repo). shortcut: regexes, not a shell parser, so it misses `gh api --input`
 # bodies, GraphQL baseRefName and `bash -c "..."`, and checks `-R other/repo`
 # against this repo's default; move to a real parser if agents route around it.
+#
+# Runs before every Bash call, so anything that can't be a `gh pr` or `gh api`
+# call is decided on builtins alone, without starting jq.
 set -uo pipefail
 
-command=$(jq -r '.tool_input.command // empty' 2>/dev/null)
+IFS= read -rd '' payload
+case $payload in *gh*pr*|*gh*api*) ;; *) exit 0 ;; esac
+command=$(jq -r '.tool_input.command // empty' <<<"$payload" 2>/dev/null)
 [[ -n $command ]] || exit 0
-case $command in *gh*) ;; *) exit 0 ;; esac
 
 # Join continuation lines, then unwrap quoted spans and glue their words with
 # `_`: a quoted value still reads as `--base x`, while a quoted mention (commit
 # message, grep pattern, PR body, a "-B" title) becomes one token that can't
 # match a flag or split a segment.
 flat=$(perl -0pe 's/\\\n/ /g; s/"((?:[^"\\]|\\.)*)"|\x27([^\x27]*)\x27/my $s = $1 \/\/ $2; $s =~ s{[\s;&|#]}{_}g; $s =~ s{^-}{_-}; $s/ge' <<<"$command")
-
-default=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null)
-default=${default#origin/}
 
 block() {
 	echo "Blocked by skillz rule ruthless-stacks: Dependent PRs must be a gh stack: use \`gh stack ...\` (see the skillz:ruthless-stacks skill)." >&2
@@ -31,6 +32,10 @@ block() {
 
 check_base() {
 	local base=$1
+	if [[ -z ${default+set} ]]; then
+		default=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null)
+		default=${default#origin/}
+	fi
 	if [[ -n $default ]]; then
 		[[ $base == "$default" ]] || block
 	else
@@ -38,13 +43,16 @@ check_base() {
 	fi
 }
 
+granted='^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*PLAIN_BASE_OK=1[[:space:]]'
+pr_call='(^|[[:space:]/(`])gh[[:space:]](.*[[:space:]])?pr[[:space:]]+(create|edit)([[:space:]]|$)'
+api_call='(^|[[:space:]/(`])gh[[:space:]](.*[[:space:]])?api[[:space:]]'
 while IFS= read -r segment; do
 	segment=${segment%%#*}
 	# The human's per-PR grant, as a leading assignment on the gh call itself.
-	grep -Eq '^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*PLAIN_BASE_OK=1[[:space:]]' <<<"$segment" && continue
-	if grep -Eq '(^|[[:space:]/(`])gh[[:space:]](.*[[:space:]])?pr[[:space:]]+(create|edit)([[:space:]]|$)' <<<"$segment"; then
+	[[ $segment =~ $granted ]] && continue
+	if [[ $segment =~ $pr_call ]]; then
 		values=$(grep -oE '[[:space:]](--base(=|[[:space:]]+)|-B[[:space:]]*)[^[:space:]]+' <<<"$segment" | sed -E 's/^[[:space:]]*(--base=?|-B)[[:space:]]*//')
-	elif grep -Eq '(^|[[:space:]/(`])gh[[:space:]](.*[[:space:]])?api[[:space:]]' <<<"$segment" && grep -q '/pulls' <<<"$segment"; then
+	elif [[ $segment =~ $api_call && $segment == */pulls* ]]; then
 		values=$(grep -oE '[[:space:]](-f|-F|--field|--raw-field)(=|[[:space:]]*)base=[^[:space:]]+' <<<"$segment" | sed -E 's/.*base=//')
 	else
 		continue

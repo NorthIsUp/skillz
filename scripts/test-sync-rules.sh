@@ -25,6 +25,18 @@ echo two >"$tmp/plugin/rules/b.md"
 [ -f "$tmp/home/.claude/rules/skillz-a.md" ] || fail "rules not mirrored"
 [ -z "$(run)" ] || fail "unchanged rules injected"
 
+# Steady state leaves the mirror alone: rewriting every rule on every prompt
+# churns ~/.claude/rules and spawns a cp per file.
+touch "$tmp/marker"
+sleep 1
+run >/dev/null
+if [ "$tmp/home/.claude/rules/skillz-a.md" -nt "$tmp/marker" ]; then fail "unchanged rule rewritten"; fi
+
+# A plugin upgrade moves CLAUDE_PLUGIN_ROOT; identical rules are not news.
+cp -R "$tmp/plugin" "$tmp/plugin2"
+out=$(echo '{"session_id":"test"}' | env CLAUDE_PLUGIN_ROOT="$tmp/plugin2" HOME="$tmp/home" TMPDIR="$tmp" "$root/plugins/skillz/bin/sync-rules")
+[ -z "$out" ] || fail "plugin move re-injected unchanged rules"
+
 echo changed >"$tmp/plugin/rules/a.md"
 rm "$tmp/plugin/rules/b.md"
 out=$(run)
