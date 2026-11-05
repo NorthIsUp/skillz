@@ -37,6 +37,12 @@ expect "$tmp/z.jsonl" AA
 say '"pick **AZ1**"' >"$tmp/az.jsonl"
 expect "$tmp/az.jsonl" BA
 
+say '"pick **ZZ4**"' >"$tmp/zz.jsonl"
+expect "$tmp/zz.jsonl" AAA
+
+say '"pick **AAZ1**"' >"$tmp/aaz.jsonl"
+expect "$tmp/aaz.jsonl" ABA
+
 say '"nothing to choose here"' >"$tmp/none.jsonl"
 expect "$tmp/none.jsonl" A
 
