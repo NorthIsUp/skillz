@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # Exercises both hook routes against a throwaway repo whose origin never
-# resolves, so "did it try to fetch?" is visible as exit 1 rather than mocked.
+# exists (a local path that is not there: no DNS, no network), so "did it try
+# to fetch?" is visible as exit 1 rather than mocked.
 set -uo pipefail
 
 guard="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/scripts/worktree-guard.sh"
 repo=$(mktemp -d)
 trap 'rm -rf "$repo"' EXIT
 git -C "$repo" init -q
-git -C "$repo" remote add origin https://example.invalid/nope.git
+git -C "$repo" remote add origin "$repo/no-such-remote.git"  # fails at once: no DNS, no network
 git -C "$repo" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
 stamp="$repo/.git/worktree-guard-fetch"
 

@@ -5,10 +5,11 @@ set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
 
-# Bail if nothing changed.
-if git diff --quiet && git diff --cached --quiet && [[ -z $(git ls-files --others --exclude-standard) ]]; then
-  exit 0
-fi
+# Bail if nothing changed: one status call (tracked, staged and untracked)
+# instead of three, since `mise watch` runs this on every file change.
+# --untracked-files=normal overrides a status.showUntrackedFiles=no config,
+# which would otherwise hide new files from the check.
+[[ -n $(git status --porcelain --untracked-files=normal) ]] || exit 0
 
 git add -A
 
