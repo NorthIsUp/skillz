@@ -174,18 +174,21 @@ $marker
 # Runs every executable in .git/hooks/<this hook>.d/ in filename order.
 set -e
 
-hook=\$(basename "\$0")
-# --git-common-dir, not \$GIT_DIR: in a worktree \$GIT_DIR is .git/worktrees/<name>.
-dir="\$(git rev-parse --path-format=absolute --git-common-dir)/hooks/\$hook.d"
+# Runs on every commit and checkout, so it starts no process of its own: this
+# file sits in the common hooks dir (worktrees included), so its slots are \$0.d.
+dir="\$0.d"
 [ -d "\$dir" ] || exit 0
 
-# pre-push and friends get stdin: read it once, replay it to each provider.
+# Only these hooks get stdin worth replaying; buffer it once for every provider.
+# The rest never see a tty either, so the buffer would cost mktemp + cat each time.
 stdin_file=
-if [ ! -t 0 ]; then
-  stdin_file=\$(mktemp "\${TMPDIR:-/tmp}/githook.XXXXXX")
-  trap 'rm -f "\$stdin_file"' EXIT
-  cat > "\$stdin_file"
-fi
+case "\${0##*/}" in
+  pre-push|post-rewrite|pre-receive|post-receive|reference-transaction|proc-receive)
+    stdin_file=\$(mktemp "\${TMPDIR:-/tmp}/githook.XXXXXX")
+    trap 'rm -f "\$stdin_file"' EXIT
+    cat > "\$stdin_file"
+    ;;
+esac
 
 for provider in "\$dir"/*; do
   case "\${provider##*/}" in .*|*.tmp.*) continue ;; esac

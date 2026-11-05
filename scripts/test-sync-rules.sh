@@ -27,8 +27,10 @@ echo two >"$tmp/plugin/rules/b.md"
 
 # Steady state leaves the mirror alone: rewriting every rule on every prompt
 # churns ~/.claude/rules and spawns a cp per file.
-touch "$tmp/marker"
-sleep 1
+# Both files back-dated, so a rewrite lands decades past the marker whatever
+# the filesystem's mtime resolution.
+touch -t 200001010000 "$tmp/home/.claude/rules/skillz-a.md"
+touch -t 200001010001 "$tmp/marker"
 run >/dev/null
 if [ "$tmp/home/.claude/rules/skillz-a.md" -nt "$tmp/marker" ]; then fail "unchanged rule rewritten"; fi
 

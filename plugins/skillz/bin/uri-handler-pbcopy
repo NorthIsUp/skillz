@@ -32,7 +32,10 @@ def notify(msg: str, title: str = "pbcopy") -> None:
     # Pass msg/title as AppleScript `argv` items, NOT interpolated into the
     # script source — `text` is attacker-controllable (it comes straight from
     # the pbcopy:// URI), so interpolation would allow AppleScript injection.
-    subprocess.run(
+    # Fire and forget: osascript takes 100-150ms, and the applet's `do shell
+    # script` waits for every fd it handed out, so a waited-on (or fd-holding)
+    # notification would make each click queue behind the last one's toast.
+    subprocess.Popen(
         [
             "osascript",
             "-e", "on run argv",
@@ -41,7 +44,10 @@ def notify(msg: str, title: str = "pbcopy") -> None:
             msg,
             title,
         ],
-        check=False,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
     )
 
 
