@@ -3,7 +3,7 @@
 // Runs the real templates with stubbed agents; only the ledger agent is real (it runs its shell command),
 // so the ledger snapshot, done/hint derivation and INCOMPLETE status are exercised end to end.
 import { execSync, spawn } from 'node:child_process'
-import { existsSync, mkdirSync, utimesSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, utimesSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -45,8 +45,13 @@ function selfSafe(cmds, want, label = want) {
   check(`busy pattern for ${label} matches it but not its own lock loop`, pat && new RegExp(pat).test(want) && !new RegExp(pat).test(loop), loop)
 }
 
+// Every fixture dir goes on exit, pass or fail; each run used to leave ~11 behind in $TMPDIR.
+const fixtures = []
+process.on('exit', () => { for (const d of fixtures) rmSync(d, { recursive: true, force: true }) })
+
 function fixture() {
   const d = mkdtempSync(join(tmpdir(), 'pcb-'))
+  fixtures.push(d)
   const repo = join(d, 'repo')
   mkdirSync(join(repo, 'docs/run'), { recursive: true })
   sh('git init -q -b main && git commit -q --allow-empty -m init', repo)
