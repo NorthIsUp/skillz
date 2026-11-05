@@ -11,6 +11,7 @@ swift test list --skip-build > .build/tests.txt
 # Suites vary widely in cost; two shards per core lets the scheduler even out the slow ones.
 n=${SHARDS:-$(( $(sysctl -n hw.ncpu) * 2 ))}
 out=$(mktemp -d)
+trap 'rm -rf "$out"' EXIT  # shard lists and logs; every run used to leave one behind
 sed -nE "s#^$mod\\.([^/]+)/.*#\\1#p" .build/tests.txt | sort -u \
   | awk -v n="$n" -v d="$out" '{ print > (d "/" (NR % n)) }'
 
