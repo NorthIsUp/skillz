@@ -1,6 +1,6 @@
 {
   "name": "guarded-worktrees",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Refuse worktrees on main/master or a local base ref; fetch origin before branching",
   "author": {
     "name": "NorthIsUp",
