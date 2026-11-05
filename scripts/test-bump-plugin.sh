@@ -14,7 +14,7 @@ check() { # check <label> <expected> <actual>
   fi
 }
 
-setup() { # setup -> echoes a fresh temp repo dir
+build() { # build -> echoes a temp repo dir with prettier-normalized fixtures
   local d
   d=$(mktemp -d)
   mkdir -p "$d/plugins/demo/.claude-plugin" "$d/.claude-plugin"
@@ -30,6 +30,16 @@ setup() { # setup -> echoes a fresh temp repo dir
 JSON
   # normalize fixtures to prettier's own output so drift is the script's fault, not ours
   prettier --write "$d/plugins/demo/.claude-plugin/plugin.json" "$d/.claude-plugin/marketplace.json" >/dev/null
+  echo "$d"
+}
+
+# prettier takes ~300ms to start, so normalize once and hand each case a copy.
+template=$(build)
+trap 'rm -rf "$template"' EXIT
+setup() { # setup -> echoes a fresh copy of the template
+  local d
+  d=$(mktemp -d)
+  cp -R "$template/." "$d"
   echo "$d"
 }
 
