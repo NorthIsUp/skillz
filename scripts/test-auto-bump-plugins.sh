@@ -13,7 +13,7 @@ check() { # check <label> <expected> <actual>
   fi
 }
 
-setup() { # setup -> echoes a temp repo with demo v0.1.0 tagged, other v9.9.9 tagged
+build() { # build -> echoes a temp repo with demo v0.1.0 tagged, other v9.9.9 tagged
   local d
   d=$(mktemp -d)
   mkdir -p "$d/scripts" "$d/.claude-plugin" \
@@ -43,6 +43,19 @@ JSON
   git init -q --bare "$d.git"
   git -C "$d" remote add origin "$d.git"
   git -C "$d" push -q origin HEAD:main
+  echo "$d"
+}
+
+# Each scenario gets its own copy of one built fixture (repo + bare remote):
+# building it is ~8 git calls, copying it is two cp's and a set-url.
+template=$(build)
+trap 'rm -rf "$template" "$template.git"' EXIT
+setup() { # setup -> echoes a fresh copy of the template repo
+  local d
+  d=$(mktemp -d)
+  cp -R "$template/." "$d"
+  cp -R "$template.git" "$d.git"
+  git -C "$d" remote set-url origin "$d.git"
   echo "$d"
 }
 

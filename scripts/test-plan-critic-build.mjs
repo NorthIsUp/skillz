@@ -218,7 +218,9 @@ console.log('locks: the stale check never counts a lock loop as the holder')
   const other = join(f.d, 'other.lock')
   mkdirSync(other)
   const sibling = spawn('/bin/bash', ['-c', template.replaceAll(lock, other).replace('<command>', `echo ${busy}-sibling`)], { stdio: 'ignore' })
-  const attempt = () => { try { return execSync(template.replace('<command>', `echo ran ${busy}`), { shell: '/bin/bash', timeout: 3000, stdio: ['ignore', 'pipe', 'ignore'] }).toString().includes('ran') } catch { return false } }
+  // The stale check runs on the loop's first pass, so a wrongly cleared lock shows up in milliseconds:
+  // the "kept" case only has to outwait a few passes, not the 3s the "cleared" case is allowed.
+  const attempt = (timeout = 3000) => { try { return execSync(template.replace('<command>', `echo ran ${busy}`), { shell: '/bin/bash', timeout, stdio: ['ignore', 'pipe', 'ignore'] }).toString().includes('ran') } catch { return false } }
   const stale = () => { mkdirSync(lock, { recursive: true }); utimesSync(lock, new Date(0), new Date(0)) }
   await new Promise(res => setTimeout(res, 300))
   stale()
@@ -226,7 +228,7 @@ console.log('locks: the stale check never counts a lock loop as the holder')
   const holder = spawn('node', ['-e', 'setTimeout(() => {}, 30000)', busy], { stdio: 'ignore' })
   await new Promise(res => setTimeout(res, 300))
   stale()
-  check('stale lock is kept while a real holder matches', !attempt() && existsSync(lock))
+  check('stale lock is kept while a real holder matches', !attempt(1000) && existsSync(lock))
   holder.kill(); sibling.kill()
 }
 
