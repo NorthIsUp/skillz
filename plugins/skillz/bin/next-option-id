@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/sh
 # Tell the model which option-group prefix to use next, derived from the
 # transcript rather than from memory — a model can't reliably recall which
 # letters it already spent 200 turns ago, and a reused prefix silently breaks
@@ -13,21 +13,26 @@
 # since then can raise it. A full scan only happens when there is no checkpoint
 # yet (a new session, or a hook run that timed out and left none).
 #
-# Runs on every prompt, so it stays at two processes (reverse + jq): a spawn
-# can cost 30-250ms under endpoint security.
-set -uo pipefail
+# Runs on every prompt, so it stays at two processes (reverse + jq) under a
+# plain sh: a spawn can cost 30-250ms under endpoint security, and
+# `/usr/bin/env bash` alone costs twice what /bin/sh does to start.
+set -u
 
-IFS= read -rd '' input
-[[ $input =~ \"transcript_path\"[[:space:]]*:[[:space:]]*\"([^\"]*)\" ]] || exit 0
-transcript=${BASH_REMATCH[1]}
+# Hook input is one line of JSON; pull the path with parameter expansion
+# rather than spawning a parser for it.
+IFS= read -r input
+case $input in *'"transcript_path"'*) ;; *) exit 0 ;; esac
+transcript=${input#*\"transcript_path\"}
+transcript=${transcript#*\"}
+transcript=${transcript%%\"*}
 [ -r "$transcript" ] || exit 0
 
-if command -v tac >/dev/null; then reverse=(tac); else reverse=(/usr/bin/tail -r); fi
+reverse() { if command -v tac >/dev/null; then tac "$1"; else tail -r "$1"; fi; }
 
 # Model prose only: tool-call inputs ride in the same assistant message, so a
 # bash command or a diff mentioning S3 or B2 would otherwise burn letters.
 # Prefixes are bijective base-26 (A=1, Z=26, AA=27); no IDs yet yields A.
-"${reverse[@]}" "$transcript" | jq -Rrn '
+reverse "$transcript" | jq -Rrn '
   def num: reduce explode[] as $c (0; . * 26 + $c - 64);
   def checkpoint: select(.type == "attachment" and .attachment.hookEvent == "UserPromptSubmit")
     | .attachment.content // "" | capture("^Next option-group prefix: (?<p>[A-Z]+)\\.").p | num;
