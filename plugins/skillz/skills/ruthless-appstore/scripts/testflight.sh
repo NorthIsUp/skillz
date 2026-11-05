@@ -18,12 +18,13 @@ OUT=${OUT:-build/testflight}
 KEY=${ASC_KEY_PATH:-$HOME/.appstoreconnect/private_keys/AuthKey_$ASC_KEY_ID.p8}
 AUTH="-allowProvisioningUpdates -authenticationKeyPath $KEY -authenticationKeyID $ASC_KEY_ID -authenticationKeyIssuerID $ASC_ISSUER_ID"
 # Linux Transporter can't analyze an .ipa itself and needs this plist beside it.
-APPSTOREINFO=$([ "$DESTINATION" = export ] && echo true || echo false)
+APPSTOREINFO=false; [ "$DESTINATION" = export ] && APPSTOREINFO=true
 # Internal-only builds skip Beta App Review and can never be offered to external testers.
-INTERNAL=$([ "${INTERNAL_ONLY:-1}" = 1 ] && echo true || echo false)
+INTERNAL=false; [ "${INTERNAL_ONLY:-1}" = 1 ] && INTERNAL=true
 
 rm -rf "$OUT" && mkdir -p "$OUT"
-security unlock-keychain -p "$(cat "$HOME/.appstoreconnect/${KC%.keychain-db}.pass")" "$KC"
+read -r KCPASS <"$HOME/.appstoreconnect/${KC%.keychain-db}.pass"
+security unlock-keychain -p "$KCPASS" "$KC"
 if [ -f project.yml ]; then
   if command -v xcodegen >/dev/null 2>&1; then xcodegen -q; else mise x "aqua:yonaskolb/XcodeGen@${XCODEGEN_VERSION:-2.44.1}" -- xcodegen -q; fi
 fi

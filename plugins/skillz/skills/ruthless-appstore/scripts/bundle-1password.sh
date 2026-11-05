@@ -24,13 +24,13 @@ cp "$profile" "$tmp/$label"
 
 # Assignment statements are visible in `ps`, so the password goes in through a template file.
 jq -n --arg team "${TEAM_ID:?}" --arg issuer "${ASC_ISSUER_ID:?}" --arg key "$ASC_KEY_ID" \
-  --arg cert "$(cat "$dir/dist.id")" --rawfile pass "$dir/p12.pass" --arg title "$title" '{
+  --rawfile cert "$dir/dist.id" --rawfile pass "$dir/p12.pass" --arg title "$title" '{
     title: $title, category: "API_CREDENTIAL",
     fields: [
       {label: "team id", type: "STRING", value: $team},
       {label: "issuer id", type: "STRING", value: $issuer},
       {label: "key id", type: "STRING", value: $key},
-      {label: "cert id", type: "STRING", value: $cert},
+      {label: "cert id", type: "STRING", value: ($cert | rtrimstr("\n"))},
       {label: "p12 password", type: "CONCEALED", value: ($pass | rtrimstr("\n"))}
     ]}' > "$tmp/item.json"
 
