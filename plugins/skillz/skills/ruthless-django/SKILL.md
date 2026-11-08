@@ -67,6 +67,36 @@ that depend on models must defer loading until the app registry is ready
 (for example, through module-level `__getattr__`); listing a name in
 `__all__` alone neither imports it nor makes it available as an attribute.
 
+## Splitting models.py
+
+Replace `models.py` with a `models/` package when either condition holds:
+
+- It contains more than five models.
+- It contains multiple distinct families of related models, even with five or fewer models overall.
+
+```text
+appname/
+  models/
+    __init__.py
+    modelname.py or modelfamily.py
+    core.py
+    tests/
+      conftest.py
+      test_modelname.py or test_modelfamily.py
+```
+
+Use one module per model or cohesive model family. Put shared helpers specific
+to this app in `models/core.py`. Keep model tests in `models/tests/`, with their
+shared fixtures in its `conftest.py`; move existing tests and fixtures with the
+models and verify discovery from the new location.
+
+`models/__init__.py` explicitly imports and re-exports every model and lists
+them in `__all__`, preserving `from appname.models import ModelName` as though
+the app still had a single `models.py`. Listing names in `__all__` alone is
+insufficient: the imports also make every model available to Django's model
+discovery. This is the model package, distinct from the app-root `__init__.py`
+whose initialization constraints are described above.
+
 ## Fat models, fat managers
 
 Behavior lives with the data. A model owns the logic about one instance;
