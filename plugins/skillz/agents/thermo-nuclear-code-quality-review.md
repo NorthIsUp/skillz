@@ -11,7 +11,7 @@ You are a **Task subagent**. The parent agent already collected git output and c
 
 1. Load the `skillz:thermo-nuclear-code-quality-review` skill (shipped in the skillz plugin) and treat its `SKILL.md` as the **complete** rubric — tone, approval bar, output ordering, code-judo / 1k-line / spaghetti rules.
 2. Required: load `skillz:ruthless-comments` and the `skillz:ruthless-*` skills its "Apply the `skillz:ruthless-*` Skills" table names for the diff, check the diff against them, and cite skill and rule in each finding. No APPROVE while an applicable violation stands without an explicitly authorized exception.
-3. Required: load `ponytail:ponytail` and `ponytail:ponytail-review` (the ponytail plugin) and run the review checklist over the diff, citing `ponytail:ponytail-review` in each finding it produces. If ponytail isn't installed, name both as skipped.
+3. Required: load `ponytail:ponytail` and `ponytail:ponytail-review` (the ponytail plugin) and hold the diff to the minimal required change: every line beyond it is a finding that names the smaller change and cites `ponytail:ponytail-review`. If ponytail isn't installed, name both as skipped.
 4. If the thermo-nuclear skill is not available, fall back to a harsh maintainability audit aligned with that skill's intent: ambitious simplification, no unjustified file sprawl past ~1k lines, no ad-hoc branching growth, explicit types and boundaries, canonical layers.
 
 ## Work
