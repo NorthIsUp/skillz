@@ -94,12 +94,12 @@ The rules above are stack-agnostic. The `skillz:ruthless-*` skills hold the per-
 
 ## Required Step: Apply `ponytail:ponytail` and `ponytail:ponytail-review`
 
-The rules above push structure; ponytail pushes size. Load both from the ponytail plugin before reviewing:
+The bar is the minimal required change: the smallest diff that fully solves the task, touching everything it must (callers, tests, fixtures) and nothing it needn't. Load both skills from the ponytail plugin before reviewing:
 
-- `ponytail:ponytail` sets the bar for the smallest complete change: no feature, option, abstraction, wrapper or dependency nobody asked for; reuse what the codebase, stdlib or an installed dependency already has; deletion beats addition.
-- `ponytail:ponytail-review` is the checklist to run over the diff: is the logic right, is it safe, does it hold under real load, is risky code tested, is it fast enough, and is every line needed.
+- `ponytail:ponytail` defines that bar: no feature, option, abstraction, wrapper or dependency nobody asked for; reuse what the codebase, stdlib or an installed dependency already has; deletion beats addition.
+- `ponytail:ponytail-review` is the checklist to run over the diff, ending on its sharpest question: is every line needed?
 
-Fold their findings into the same priority order below, citing the skill (`ponytail:ponytail-review: ...`). A line that exists only for flexibility nobody asked for is a code-judo finding, not a nit. If the ponytail plugin isn't installed, name both skills in the review as skipped.
+Every line beyond the minimal required change is a finding, not a nit: name the line, say what the smaller change is, and cite the skill (`ponytail:ponytail-review: ...`). Restructuring advice from the rules above must shrink the diff or the code, never grow it to tidy something the task didn't need. If the ponytail plugin isn't installed, name both skills in the review as skipped.
 
 ## Primary Review Questions
 
