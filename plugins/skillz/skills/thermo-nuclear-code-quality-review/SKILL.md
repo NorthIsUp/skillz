@@ -92,6 +92,15 @@ The rules above are stack-agnostic. The `skillz:ruthless-*` skills hold the per-
 - Cite the skill and rule in every finding (`skillz:ruthless-python Rule 3: ...`), quote the line, give the replacement. Don't restate the rule's reasoning: the skill carries it.
 - If a skill can't be loaded, name it in the review as skipped. Don't approximate it.
 
+## Required Step: Apply `ponytail:ponytail` and `ponytail:ponytail-review`
+
+The rules above push structure; ponytail pushes size. Load both from the ponytail plugin before reviewing:
+
+- `ponytail:ponytail` sets the bar for the smallest complete change: no feature, option, abstraction, wrapper or dependency nobody asked for; reuse what the codebase, stdlib or an installed dependency already has; deletion beats addition.
+- `ponytail:ponytail-review` is the checklist to run over the diff: is the logic right, is it safe, does it hold under real load, is risky code tested, is it fast enough, and is every line needed.
+
+Fold their findings into the same priority order below, citing the skill (`ponytail:ponytail-review: ...`). A line that exists only for flexibility nobody asked for is a code-judo finding, not a nit. If the ponytail plugin isn't installed, name both skills in the review as skipped.
+
 ## Primary Review Questions
 
 For every meaningful change, ask:
