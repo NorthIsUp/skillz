@@ -199,6 +199,15 @@ Prioritize findings in this order:
 Do not flood the review with low-value nits if there are larger structural issues.
 Prefer a smaller number of high-conviction comments over a long list of cosmetic notes.
 
+### Required section: Class and function inventory
+
+Whenever the diff touches Python, the review includes a table of every class and module-level function the diff adds or changes. A review without it is incomplete.
+
+| file:line | name | kind | verdict (`skillz:ruthless-python` Rules 4/5/5a) | fix |
+| --------- | ---- | ---- | ----------------------------------------------- | --- |
+
+`kind` is class, function, classmethod or method. The verdict is pass or the rule it breaks: a stateful class that isn't a `BaseModel` (Rule 4), a free function that belongs on a type (Rule 5), a constructor outside the type it returns (Rule 5a). `fix` names the owner and the new signature.
+
 ## Approval Bar
 
 Do not approve merely because behavior seems correct.
@@ -223,5 +232,7 @@ Treat these as presumptive blockers unless the author can justify them clearly:
 - the PR duplicates an existing helper or puts logic in the wrong layer when there is a clear canonical home
 
 A review cannot conclude APPROVE while an applicable `skillz:ruthless-*` violation is unaddressed, unless it has an explicitly authorized exception. That is a hard blocker, not a presumptive one: the author's justification alone does not clear it.
+
+An author's "judgment call", "kept on purpose", or any other waiver against a `skillz:ruthless-*` rule is an automatic REQUEST CHANGES. Only an exception the user explicitly granted clears it, and the review quotes that grant.
 
 If those conditions are not met, leave explicit, actionable feedback and push for a cleaner decomposition.
