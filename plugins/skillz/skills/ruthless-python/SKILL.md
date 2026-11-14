@@ -25,7 +25,7 @@ to cases the rule doesn't literally cover.
 - **Rule 2 — `Any` is effectively banned.** Use it only when it is unambiguously the correct type, not the convenient one: a value that genuinely passes through untouched and could be anything, never one you then read, index, or call. An untyped third-party value is not that case — write a stub or validate it with pydantic at the boundary. `object` is the honest spelling for "anything, and I won't touch it without narrowing". Every `Any` carries a one-line comment saying why nothing narrower is correct.
 - **Rule 2a — `cast` and suppression comments need the user's approval.** `cast(...)`, `# type: ignore`, `# pyright: ignore[...]`, and `# ty: ignore[...]` assert something the checker could not prove, so they are a last resort, not a fix. First exhaust the honest routes: narrowing (`isinstance`, `match`, `assert`, `TypeGuard`/`TypeIs`), a correct annotation or generic, pydantic validation at the boundary, official stubs, a local stub, or an upstream stub fix. If one is still needed, stop and ask the user, naming the exact diagnostic and what you tried. An agent never grants itself this. Once approved, keep it to one place (a single typed helper rather than 15 call sites), name the rule it silences, and give it a one-line reason. Configure both checkers to error on an unused suppression, so a stale one can't outlive its cause.
 - **Rule 3 — Never return `list[Any]` or `dict[str, Any]`.** That's a missing type, not a type. Define a pydantic model (or a `TypedDict`) and return that. See `references/typing.md`.
-- **Rule 4 — Pydantic first for data with shape or boundaries.** Structured data is a `pydantic.BaseModel`, both at I/O boundaries (HTTP, queue, file, LLM tool call, config) and for internal value objects. A wrapped list, dict, or scalar is a `RootModel[T]`. Use `@dataclass` only where pydantic isn't a dependency. JSON input is parsed straight into its model with `Model.model_validate_json(raw)`, never `json.loads` followed by dict access. Plain dicts are not a data model. See `references/pydantic.md`.
+- **Rule 4 — Every class that carries state is a pydantic `BaseModel`.** That covers I/O boundaries (HTTP, queue, file, LLM tool call, config), internal value objects, and equally stateful context managers, accumulators, scopes and service objects: "it isn't data" is not an exception. Non-field state (a `ContextVar` token, a lock, a client) goes in a `PrivateAttr`; a field whose type is third-party gets `model_config = ConfigDict(arbitrary_types_allowed=True)`. A plain `class X:` with no base is only for a `Protocol`/ABC, an `Exception`, an `Enum`, or a framework base the class must subclass (a Django `Model`, a ninja `Router`). A wrapped list, dict, or scalar is a `RootModel[T]`. Use `@dataclass` only where pydantic isn't a dependency. JSON input is parsed straight into its model with `Model.model_validate_json(raw)`, never `json.loads` followed by dict access. Plain dicts are not a data model. See `references/pydantic.md`.
 - **Rule 5 — Methods live on the model, not in utility modules.** Behavior on an existing model belongs on that model; construction of another model belongs on the resulting model. Don't write `def _normalize_email(user: User) -> str` in a `helpers.py`; write `User.normalize_email(self) -> str`. Behavior belongs with the data it operates on. Reasons it matters:
   - Discoverability: `user.<TAB>` shows what a `User` can do; grepping `helpers.py` does not.
   - Refactor safety: renaming the field updates call sites via the type checker; loose utility functions silently rot.
@@ -35,6 +35,14 @@ to cases the rule doesn't literally cover.
   - The function legitimately operates on two unrelated types at the same level (`def merge(a: A, b: B) -> C`).
   - It's a pure constructor / parser that returns the model from raw input — that's a `@classmethod` (e.g., `User.from_row`), not a free function.
   - It's a cross-cutting concern with no natural owner (logging, tracing). Even then, prefer a method on the cross-cutting object (`tracer.span(...)`) over `do_traced(thing)`.
+
+  Not exceptions (each still needs the method):
+  - "It matches the module's existing pattern." Existing code is followed only where it agrees with this skill.
+  - "It keeps layer X free of Y." The method goes on the owning type in the layer that knows Y, not in a free function.
+  - "It's a context manager" / "it's not data." See Rule 4.
+  - "A one-use helper isn't worth a method."
+
+  The only owner-less case is a third-party type we can't add methods to, and it carries a one-line comment naming that type.
 
   Example:
 
@@ -61,6 +69,8 @@ to cases the rule doesn't literally cover.
   Reuse existing canonical models and schemas before introducing another representation. Derive unchanged fields through the framework's supported schema mechanism, with an explicit field allowlist at API boundaries. Declare only genuinely additional or transformed fields. Keep database querying in the model's manager/queryset and transport concerns in thin handlers; pure constructors should not fetch their own inputs.
 
   Moving a free function into a class is insufficient if it still duplicates an existing domain rule. Find the canonical owner and consolidate the implementation there.
+
+  The Rule 5 "not exceptions" apply here too: a constructor written as a free function is a finding whatever the reason given.
 
 - **Rule 6 —** `match` **over** `isinstance` **chains.** Pattern matching declares the _shape_ of the data; an `isinstance` ladder hides it in imperative branches. Convert any three-arm `isinstance` chain. Use `assert_never(x)` in the catch-all so the type checker flags missing variants.
 
@@ -230,6 +240,9 @@ See `references/pydantic.md` for model factory patterns.
 | `def f(x):` (no annotations)                                      | Full signature with types                                       |
 | `-> dict[str, Any]` / `-> list[dict]`                             | `TypedDict` or pydantic model                                   |
 | `def helper(model: M, ...)` in a utils module                     | A method on `M`                                                 |
+| `def f(model: M, ...)` at module level beside `M`'s owner         | A method on `M`                                                 |
+| `def build_x(...) -> X` free-function constructor                 | `@classmethod` on `X` (Rule 5a)                                 |
+| `class X:` with no base that carries state                        | `BaseModel`, non-field state in `PrivateAttr` (Rule 4)          |
 | `def _make_user(...) -> User` in a test file                      | `@pytest.fixture` returning the factory                         |
 | Three-arm `if isinstance(x, A): ... elif ...`                     | `match x: case A(): ...`                                        |
 | `asyncio.gather(*tasks)` for fan-out                              | `async with asyncio.TaskGroup() as tg:`                         |
