@@ -162,6 +162,7 @@ to cases the rule doesn't literally cover.
   One-line strings and strings whose whitespace is the data (fixtures, golden output) stay as they are.
 
 - **Rule 13 — Every module explicitly declares its public interface with `__all__`.** List the names callers may rely on, including intentional re-exports; everything else is internal. This applies to every Python module, including package `__init__.py` files. A module with no public interface declares `__all__ = []`. Keep the list explicit and update it when the supported interface changes; do not generate it from `globals()` or expose imported dependencies by accident. `__all__` documents the supported contract and controls wildcard imports; it does not prevent explicit imports of internal names. A package's public exports go through its `__init__.py` and its `__all__`, and nowhere else: no central `module_exports.py` registry, no `exports.py`/`public.py` side module. A second list of exports drifts from the package, and callers can't tell which one is the contract.
+- **Rule 14 — Names say what the value is, and booleans read as a question.** A name, private `_` ones especially, names the thing in its role, not its type or a verb: `_current_request_run = HttpRequest()`, not `_run`. A boolean starts with a verb that makes it a yes/no question: `is_request_active`, `has_local_context`, `can_retry`, `should_flush`, not `active`, `local_context` or `retry`.
 
 ## Library defaults
 
@@ -272,6 +273,7 @@ See `references/pydantic.md` for model factory patterns.
 | `created_at: str` / epoch `int` on a model                        | `created_at: datetime` (tz-aware)                               |
 | `datetime.utcnow()`                                               | `datetime.now(UTC)`                                             |
 | Flush-left `"""` SQL/code block, or `textwrap.dedent`             | `inspect.cleandoc(""" ... """)` at the code's indent (Rule 12)  |
+| `_run = HttpRequest()` / `active: bool`                           | `_current_request_run` / `is_request_active` (Rule 14)          |
 | Stored blob with no version field                                 | A `v: Literal[N]` on the model                                  |
 
 ## Reviewing Python (PRs, diffs)
