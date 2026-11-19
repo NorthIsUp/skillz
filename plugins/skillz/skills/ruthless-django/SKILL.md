@@ -149,6 +149,44 @@ stop and think: an instance deliberately held across an
 `await`-and-mutate cycle, or a long-lived object in a management command
 or worker loop — there, cache what the DB can't change under you.
 
+**Row rules come in twins: a queryset method and an instance predicate.**
+When a rule decides which rows qualify (released, signed, visible to
+clinicians), the set form is a queryset method and the one-instance form
+is a `cached_property` on the model, named for the same rule. A row
+fetched through the queryset method arrives with the predicate already
+answered: annotate it under the property's name, and the instance's
+`__dict__` wins over the non-data `cached_property`, so reading it costs
+no query.
+
+```python
+class ProfileQuerySet(models.QuerySet[Profile]):
+    def chart_patients(self) -> Self:
+        return self.filter(CHART_PATIENT_Q).annotate(is_chart_patient=Value(True))
+
+class Profile(models.Model):
+    objects = models.Manager.from_queryset(ProfileQuerySet)()
+
+    @cached_property
+    def is_chart_patient(self) -> bool:
+        return Profile.objects.chart_patients().filter(pk=self.pk).exists()
+```
+
+**A checked fact is a property of the model, never a wrapper type.**
+"This patient passed the access check" is a fact about the row, so it
+lives on the row as the predicate above. Don't carry it in a `NewType`,
+a `RootModel[Profile]`, a token object, or a "ticket" class: a wrapper
+isn't the model (`isinstance` fails, attributes need `.root`), it fights
+every caller that takes the model, and a `NewType` can be built anywhere
+without the check. Code that needs the guarantee asserts the predicate.
+The one exception is a fact that depends on who is asking, not on the
+row; that belongs to the request, not the model.
+
+**A free function that fetches one model is a queryset method.** `def
+patient(mrn) -> Profile` that filters, `.aget()`s, and raises 404 is
+`Profile.objects.chart_patients().by_mrn(mrn)` plus the boundary's
+existing not-found handling. Map `DoesNotExist` to an HTTP error once, at
+the API layer, not in a per-model lookup helper.
+
 **One `model_id` as the first parameter is the tell.** `def
 cancel_order(order_id, ...)` is a manager method or a classmethod; `def
 cancel(order: Order, ...)` is a method on `Order`. Same rule as
@@ -326,6 +364,9 @@ signal is untraceable at 3am.
 | `Model.objects.all()` in a list route             | A paginated selector                                   |
 | Missing `select_related` / `prefetch_related`     | The right one, plus `assertNumQueries`                 |
 | Signal for same-app logic                         | Direct service call                                    |
+| `NewType`/`RootModel`/"ticket" wrapping a model   | A `cached_property` predicate on the model             |
+| Queryset rule with no instance twin (or reverse)  | Both, same name; the queryset primes the property      |
+| `def get_x(key) -> Model` fetch-filter-404 helper | A queryset method; map `DoesNotExist` at the API layer |
 | Secret in `settings.py`                           | Environment variable read in `settings/base.py`        |
 | `cache.set(key, model_instance)`                  | A versioned pydantic schema, `.model_dump_json()`      |
 | Pickled blob in a `BinaryField`                   | A `JSONField` holding a versioned schema               |
