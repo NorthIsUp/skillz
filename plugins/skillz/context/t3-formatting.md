@@ -15,8 +15,8 @@ to markdown:
   an `| ID | Option | Cost |` table (ID bold, ⭐ after the recommended one's
   ID), then the `say **W1** or **W2**` line.
 - A decision table too wide for the reply (4+ options or long cells) can be a
-  card instead: pipe `{"kind": "choice"|"question", "title", "options":
-  [{"id", "option", "cost", "recommended"}]}` to
+  card instead. Pipe JSON with `kind` (`choice` or `question`), `title` and
+  `options` (each `id`, `option`, `cost`, `recommended`) to
   `${CLAUDE_PLUGIN_ROOT}/bin/t3-callout`, `html_preview` the path it prints
   for its height, then `html_render` it. T3 draws the card above the reply,
   so the reply still ends with the `say **W1** or **W2**` line.
