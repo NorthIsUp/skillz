@@ -5,7 +5,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "[ \"$(uname)\" != Darwin ] || cat \"${CLAUDE_PLUGIN_ROOT}/context/copy-links.md\""
+            "command": "[ \"$(uname)\" != Darwin ] || [ \"${CLAUDE_CODE_ENTRYPOINT:-}\" = t3-code ] || cat \"${CLAUDE_PLUGIN_ROOT}/context/copy-links.md\""
+          },
+          {
+            "type": "command",
+            "command": "[ \"${CLAUDE_CODE_ENTRYPOINT:-}\" != t3-code ] || cat \"${CLAUDE_PLUGIN_ROOT}/context/t3-formatting.md\""
           },
           {
             "type": "command",
