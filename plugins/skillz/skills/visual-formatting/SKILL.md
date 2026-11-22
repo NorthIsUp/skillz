@@ -15,6 +15,14 @@ Make replies scannable, not longer. Structure, not verbosity.
   lines between blocks, a rule (`───`) or a small ASCII header between major
   phases. Let the eye find the seams without reading every word.
 
+## T3 clients
+
+In T3 Code (`CLAUDE_CODE_ENTRYPOINT=t3-code`), replies render as markdown on
+desktop and phone alike, and box-drawing outside a code fence wraps into
+noise on a narrow screen. A SessionStart hook loads
+`context/t3-formatting.md` there: headings, lists and short tables stand in
+for every box below. Anchors and option IDs stay.
+
 ## Header options
 
 Border weight tracks how big the finding is — double for major, heavy for
