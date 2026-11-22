@@ -20,8 +20,8 @@ Make replies scannable, not longer. Structure, not verbosity.
 In T3 Code (`CLAUDE_CODE_ENTRYPOINT=t3-code`), replies render as markdown on
 desktop and phone alike, and box-drawing outside a code fence wraps into
 noise on a narrow screen. A SessionStart hook loads
-`context/t3-formatting.md` there: headings, lists and short tables stand in
-for every box below. Anchors and option IDs stay.
+`context/t3-formatting.md` there: headings, tables, alert callouts and
+`<details>` stand in for every box below. Anchors and option IDs stay.
 
 ## Header options
 
