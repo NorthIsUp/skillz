@@ -11,13 +11,15 @@ to markdown:
 - Item/state pairs are a list (`- 🔀 #44 OPEN — waiting on CI`) or a table of
   at most 3 short columns; no dotted leaders.
 - "PR merged" is a line of its own: `### 🚢 [#53](url) MERGED → main (\`7883297\`)`.
-- A question is a `> [!IMPORTANT]` callout: a bold `❓` question line, then
-  an `| ID | Option | Cost |` table (ID bold, ⭐ after the recommended one's
-  ID), then the `say **W1** or **W2**` line.
+- A pick between options is a `> [!CHOICE]` callout: a bold question line,
+  then an `| ID | Option | Cost |` table (ID bold, ⭐ after the recommended
+  one's ID), then the `say **W1** or **W2**` line. A question only the reader
+  can answer in their own words (a URL, a name) is `> [!QUESTION]`.
 - GitHub alert callouts (`> [!TIP]` etc.) render as colored cards; use them
   for whatever must survive skimming, one meaning each: `TIP` a win
   (merged, shipped), `NOTE` neutral status, `WARNING` a caveat or something
-  watched, `CAUTION` failed or blocked, `IMPORTANT` a question for the reader.
+  watched, `CAUTION` failed or blocked, `IMPORTANT` a behavior change the
+  reader must act on. `CHOICE` and `QUESTION` are T3's own additions.
   Separate items inside one with blank lines.
 - Detail the reader may skip (a Q&A list, logs, a long per-goal breakdown)
   goes in `<details><summary>…</summary>`, with a blank line after the
