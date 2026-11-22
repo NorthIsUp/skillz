@@ -123,6 +123,9 @@ export const register: Register = (on, options) => {
     for (const p of PLUGINS) {
       const r = await $.process.run(['claude', 'plugin', 'update', `${p}@${MARKETPLACE}`], minutes)
       lines.push(`${p}: ${lastLine(r.stdout || r.stderr)}`)
+      // Without a scope it updates only the install for this directory, so the user-scope copy every other project falls back to went stale.
+      const u = await $.process.run(['claude', 'plugin', 'update', `${p}@${MARKETPLACE}`, '--scope', 'user'], minutes)
+      lines.push(`${p} (user): ${lastLine(u.stdout || u.stderr)}`)
     }
     // $.command.run is refused from inside this hook, so the reloads start once it has answered.
     void (async () => {
