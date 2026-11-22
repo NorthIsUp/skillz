@@ -23,7 +23,7 @@ to markdown:
   goes in `<details><summary>…</summary>`, with a blank line after the
   summary so the body still parses as markdown. The phone shows it expanded.
 - No other HTML: T3's sanitizer and the phone drop the rest (`<kbd>`, `<dl>`,
-  `<table>`), and `: ` definition lists don't parse.
+  `<table>`), and colon-prefixed definition lists don't parse.
 - The completion banner is `## 🎉 We done here` plus one line.
 - Code fences hold code and command output only, never a dashboard; keep
   their lines under 60 characters.
