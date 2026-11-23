@@ -9,7 +9,7 @@
           },
           {
             "type": "command",
-            "command": "[ \"${CLAUDE_CODE_ENTRYPOINT:-}\" != t3-code ] || cat \"${CLAUDE_PLUGIN_ROOT}/context/t3-formatting.md\""
+            "command": "[ \"${CLAUDE_CODE_ENTRYPOINT:-}\" != t3-code ] || sed \"s#\\${CLAUDE_PLUGIN_ROOT}#${CLAUDE_PLUGIN_ROOT}#g\" \"${CLAUDE_PLUGIN_ROOT}/context/t3-formatting.md\""
           },
           {
             "type": "command",

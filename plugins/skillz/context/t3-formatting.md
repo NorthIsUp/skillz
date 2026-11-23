@@ -11,8 +11,25 @@ to markdown:
 - Item/state pairs are a list (`- 🔀 #44 OPEN — waiting on CI`) or a table of
   at most 3 short columns; no dotted leaders.
 - "PR merged" is a line of its own: `### 🚢 [#53](url) MERGED → main (\`7883297\`)`.
-- A question is a `### ❓` heading, one option per list line with its ID
-  first (`- **W1** ⭐ …`), then the `say **W1** or **W2**` line.
+- A question is a `> [!IMPORTANT]` callout: a bold `❓` question line, then
+  an `| ID | Option | Cost |` table (ID bold, ⭐ after the recommended one's
+  ID), then the `say **W1** or **W2**` line.
+- A decision table too wide for the reply (4+ options or long cells) can be a
+  card instead. Pipe JSON with `kind` (`choice` or `question`), `title` and
+  `options` (each `id`, `option`, `cost`, `recommended`) to
+  `${CLAUDE_PLUGIN_ROOT}/bin/t3-callout`, `html_preview` the path it prints
+  for its height, then `html_render` it. T3 draws the card above the reply,
+  so the reply still ends with the `say **W1** or **W2**` line.
+- GitHub alert callouts (`> [!TIP]` etc.) render as colored cards; use them
+  for whatever must survive skimming, one meaning each: `TIP` a win
+  (merged, shipped), `NOTE` neutral status, `WARNING` a caveat or something
+  watched, `CAUTION` failed or blocked, `IMPORTANT` a question for the reader.
+  Separate items inside one with blank lines.
+- Detail the reader may skip (a Q&A list, logs, a long per-goal breakdown)
+  goes in `<details><summary>…</summary>`, with a blank line after the
+  summary so the body still parses as markdown. The phone shows it expanded.
+- No other HTML: T3's sanitizer and the phone drop the rest (`<kbd>`, `<dl>`,
+  `<table>`), and colon-prefixed definition lists don't parse.
 - The completion banner is `## 🎉 We done here` plus one line.
 - Code fences hold code and command output only, never a dashboard; keep
   their lines under 60 characters.

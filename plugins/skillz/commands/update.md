@@ -6,9 +6,9 @@ allowed-tools: Bash, SlashCommand
 Manual fallback for `/skillz-update`, which also reloads by itself. Fresh copy pulled and installed:
 
 ```bash
-!claude plugin marketplace update northisup-skillz; for p in skillz tmux-session-resume guarded-worktrees; do claude plugin update "$p@northisup-skillz" 2>&1 | tail -1; done
+!claude plugin marketplace update northisup-skillz; for p in skillz tmux-session-resume guarded-worktrees; do claude plugin update "$p@northisup-skillz" 2>&1 | tail -1; claude plugin update "$p@northisup-skillz" --scope user 2>&1 | tail -1; done
 ```
 
-Now reload so this session picks it up: run `/reload-plugins`, then `/reload-skills`. If you have no SlashCommand tool, print those two lines and tell me to type them.
+Now reload so this session picks it up: run `/reload-plugins`, then `/reload-skills`. If you have no SlashCommand tool, print those two lines and tell me to type them. In T3 (`CLAUDE_CODE_ENTRYPOINT=t3-code`) neither reload exists: say a new thread picks the update up.
 
 Report the resulting versions in one line each; skip plugins that were already current.

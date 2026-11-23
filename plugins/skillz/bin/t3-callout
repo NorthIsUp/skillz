@@ -1,0 +1,106 @@
+#!/usr/bin/env python3
+# Render a decision table as a T3-styled callout page for `html_render`.
+#
+# T3's markdown only knows GitHub's five alert kinds, so a "Choice" or
+# "Question" label can't be written as markdown yet. This builds the same
+# card as HTML, using T3's theme variables so it matches light and dark.
+#
+# Targets system python (3.9 on macOS): plugin bin/ scripts run on whatever
+# the user has.
+from __future__ import annotations
+
+import argparse
+import html
+import json
+import sys
+import tempfile
+from pathlib import Path
+from typing import Any
+
+# label, lucide icon paths, border colour, title colour (light, dark)
+KINDS: dict[str, tuple[str, str, str, str, str]] = {
+    "choice": (
+        "Choice",
+        '<path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/>'
+        '<path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/>',
+        "rgb(14 165 233 / .7)", "#0284c7", "#38bdf8",
+    ),
+    "question": (
+        "Question",
+        '<circle cx="12" cy="12" r="10"/>'
+        '<path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/>',
+        "rgb(14 165 233 / .7)", "#0284c7", "#38bdf8",
+    ),
+    "important": (
+        "Important",
+        '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>'
+        '<path d="M12 7v2"/><path d="M12 13h.01"/>',
+        "rgb(168 85 247 / .7)", "#9333ea", "#c084fc",
+    ),
+}
+
+STYLE = """
+.alert { border-inline-start: 2px solid var(--b); padding-inline-start: 12px; margin: 4px 0; }
+.title { display: flex; align-items: center; gap: 6px; font-weight: 500; margin: 0 0 8px; color: var(--tl); }
+@media (prefers-color-scheme: dark) { .title { color: var(--td); } }
+:root[data-theme="dark"] .title { color: var(--td); }
+.title svg { width: 14px; height: 14px; flex-shrink: 0; }
+p { margin: 0 0 8px; }
+table { border-collapse: collapse; font-size: 14px; margin: 4px 0 8px; width: 100%; }
+th, td { border-bottom: 1px solid var(--border); padding: 5px 8px; text-align: left; vertical-align: top; }
+th { font-weight: 600; }
+td.id { white-space: nowrap; font-weight: 600; }
+td.cost { color: var(--muted-foreground); }
+tr.rec td { background: color-mix(in srgb, var(--b) 12%, transparent); }
+"""
+
+
+def esc(text: str) -> str:
+    return html.escape(text, quote=True)
+
+
+def render(spec: dict[str, Any]) -> str:
+    kind = spec.get("kind", "choice")
+    if kind not in KINDS:
+        raise SystemExit(f"t3-callout: kind must be one of {', '.join(KINDS)}, got {kind!r}")
+    label, icon, border, light, dark = KINDS[kind]
+    parts = [
+        f'<div class="alert" style="--b:{border};--tl:{light};--td:{dark}">',
+        f'<p class="title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+        f'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">{icon}</svg>{label}</p>',
+        f"<p><b>{esc(spec['title'])}</b></p>",
+    ]
+    if spec.get("body"):
+        parts.append(f"<p>{esc(spec['body'])}</p>")
+    options = spec.get("options") or []
+    if options:
+        parts.append("<table><tr><th>ID</th><th>Option</th><th>Cost</th></tr>")
+        for opt in options:
+            rec = bool(opt.get("recommended"))
+            parts.append(
+                f'<tr class="{"rec" if rec else ""}"><td class="id">{esc(opt["id"])}{" ⭐" if rec else ""}</td>'
+                f'<td>{esc(opt["option"])}</td><td class="cost">{esc(opt.get("cost", ""))}</td></tr>'
+            )
+        parts.append("</table>")
+        ids = [f"<b>{esc(o['id'])}</b>" for o in options]
+        picks = ids[0] if len(ids) == 1 else ", ".join(ids[:-1]) + " or " + ids[-1]
+        parts.append(f"<p>Say {picks}.</p>")
+    parts.append("</div>")
+    return (
+        '<!doctype html><html><head><meta charset="utf-8">'
+        f"<style>{STYLE}</style></head><body>{''.join(parts)}</body></html>"
+    )
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Render a T3 callout page from a JSON spec on stdin.")
+    parser.add_argument("-o", "--out", help="output .html path (default: a temp file)")
+    args = parser.parse_args()
+    page = render(json.load(sys.stdin))
+    out = Path(args.out) if args.out else Path(tempfile.mkstemp(prefix="t3-callout-", suffix=".html")[1])
+    out.write_text(page, encoding="utf-8")
+    print(out)
+
+
+if __name__ == "__main__":
+    main()

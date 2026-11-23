@@ -57,7 +57,8 @@ test('skillz-update updates every plugin then queues both reloads', async ($, on
     presentation: { isFullscreen: false, columns: 80 },
   })
   expect(argvs[0]).toEqual(['claude', 'plugin', 'marketplace', 'update', 'northisup-skillz'])
-  expect(argvs).toHaveLength(4)
+  expect(argvs).toHaveLength(7)
+  expect(argvs[2]).toEqual(['claude', 'plugin', 'update', 'skillz@northisup-skillz', '--scope', 'user'])
   expect(text).toContain('skillz: ok skillz@northisup-skillz')
   // the reloads run detached after the command answers
   for (let i = 0; i < 50 && ran.length < 2 && toasts.length === 0; i++) await Promise.resolve()
