@@ -61,7 +61,7 @@ test('skillz-update updates every plugin then queues both reloads', async ($, on
   expect(argvs[2]).toEqual(['claude', 'plugin', 'update', 'skillz@northisup-skillz', '--scope', 'user'])
   expect(text).toContain('skillz: ok skillz@northisup-skillz')
   // the reloads run detached after the command answers
-  for (let i = 0; i < 50 && ran.length < 2 && toasts.length === 0; i++) await Promise.resolve()
+  for (let i = 0; i < 500 && ran.length < 2 && toasts.length === 0; i++) await Promise.resolve()
   expect(toasts).toEqual([])
   expect(ran).toEqual(['reload-skills', 'reload-plugins'])
 })
@@ -130,3 +130,16 @@ test('the visual-formatting module is off by default', async ($, on) => {
   const { result } = await $.tool.call({ tool: 'mcp__skillz__ask', question: 'q', options: [{ id: 'K1', label: 'a' }, { id: 'K2', label: 'b' }] })
   expect(String(result)).not.toContain('╭')
 })
+
+for (const isRootPresent of [true, false]) {
+  test(`a prompt ${isRootPresent ? 'leaves an intact plugin folder alone' : 'reloads plugins once their folder is deleted'}`, async ($, on) => {
+    const ran: string[] = []
+    on('fs.exists', async () => ({ value: isRootPresent }))
+    on('clock.sleep', async () => ({ value: undefined }))
+    on('prompt.submit', async (_$, e) => ({ text: e.text, context: [] }))
+    on('command.run', { command: 'reload-plugins' }, async (_$, e) => (ran.push(e.command), { text: '' }))
+    await $.prompt.submit({ text: 'hi', asUser: true })
+    for (let i = 0; i < 500 && ran.length === 0; i++) await Promise.resolve()
+    expect(ran).toEqual(isRootPresent ? [] : ['reload-plugins'])
+  })
+}

@@ -58,11 +58,28 @@ const setEnabled = async ($: EngineInterface, id: string, enabled: boolean) => {
 export const checklist = (ids: readonly string[]) =>
   DECISIONS.map((d, i) => `${i + 1}. ${ids.includes(d.id) ? '[ ]' : '[x]'} ${d.label}`).join('\n')
 
+// An update deletes the cache folder this copy loaded from, and the skills,
+// agents and hooks read from it vanish mid-session. This module stays in
+// memory, so it reloads the plugins onto the new folder. Detached, as in
+// /skillz-update: $.command.run is refused from inside the hook that called
+// it, and the reload waits for an idle session, which a prompt hook never is.
+const reloadQueued = atom({ plugin: 'skillz', key: 'isReloadQueued' } as const, false)
+async function reloadIfOrphaned($: EngineInterface) {
+  if ((await read($, reloadQueued)) || (await $.fs.exists($.plugin.root))) return
+  await update($, reloadQueued, () => true)
+  void (async () => {
+    await $.clock.sleep(0)
+    await $.command.run({ command: 'reload-plugins', args: '' })
+  })()
+}
+
 export const register: Register = (on, options) => {
   // Opt-in: off, only /skillz-update loads and the skill falls back to chat text.
   const vf = options.visualFormattingModule === true
 
   on('session.start', async ($, e, next) => {
+    // Backstop for a session left idle across an update.
+    $.clock.every(60 * 60_000, () => reloadIfOrphaned($))
     await $.command.register({ name: 'skillz-update', description: 'Update skillz plugins, then reload plugins and skills' })
     if (!vf) return next(e)
     const saved = await $.store.get(STORE_KEY)
@@ -138,6 +155,16 @@ export const register: Register = (on, options) => {
     return { text: [...lines, 'Reloading plugins and skills…'].join('\n') }
   })
 
+  // One prompt hook, so it runs with the visual-formatting module off too: the
+  // folder check always, and the pinned question (sticky: only a message
+  // naming one of its option ids answers it) when the module is on.
+  on('prompt.submit', async ($, e, next) => {
+    await reloadIfOrphaned($)
+    const ask = vf ? await read($, pending) : null
+    if (ask && answers(ask, e.text)) await update($, pending, () => null)
+    return next(e)
+  })
+
   if (!vf) return
 
   on('command.run', { command: 'vf' }, async $ => {
@@ -158,13 +185,6 @@ export const register: Register = (on, options) => {
     const ask: Ask = { question: e.question, options }
     await update($, pending, () => ask)
     return { result: askBlock(ask) }
-  })
-
-  // Sticky: only a message naming one of its option ids answers it.
-  on('prompt.submit', async ($, e, next) => {
-    const ask = await read($, pending)
-    if (ask && answers(ask, e.text)) await update($, pending, () => null)
-    return next(e)
   })
 
   on('prompt.compose', async ($, e, next) => {
