@@ -8,6 +8,6 @@ declare module 'claude-code' {
     'mcp__skillz__ask': { question: string; options: AskOption[] }
   }
   interface PluginState {
-    'skillz': { vfOff: DecisionId[]; ask: Ask | null }
+    'skillz': { vfOff: DecisionId[]; ask: Ask | null; isReloadQueued: boolean }
   }
 }
