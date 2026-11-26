@@ -13,7 +13,8 @@ to markdown:
 - "PR merged" is a line of its own: `### 🚢 [#53](url) MERGED → main (\`7883297\`)`.
 - A question is a `> [!IMPORTANT]` callout: a bold `❓` question line, then
   an `| ID | Option | Cost |` table (ID bold, ⭐ after the recommended one's
-  ID), then the `say **W1** or **W2**` line.
+  ID), then the `say **W1** or **W2**` line. Never `AskUserQuestion`: its
+  buttons pause the turn until answered, and the callout doesn't.
 - A decision table too wide for the reply (4+ options or long cells) can be a
   card instead. Pipe JSON with `kind` (`choice` or `question`), `title` and
   `options` (each `id`, `option`, `cost`, `recommended`) to
