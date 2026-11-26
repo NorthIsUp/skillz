@@ -11,9 +11,16 @@ to markdown:
 - Item/state pairs are a list (`- 🔀 #44 OPEN — waiting on CI`) or a table of
   at most 3 short columns; no dotted leaders.
 - "PR merged" is a line of its own: `### 🚢 [#53](url) MERGED → main (\`7883297\`)`.
-- A question is a `> [!IMPORTANT]` callout: a bold `❓` question line, then
-  an `| ID | Option | Cost |` table (ID bold, ⭐ after the recommended one's
-  ID), then the `say **W1** or **W2**` line.
+- A pick between options is asked with `AskUserQuestion`: T3 shows it as
+  clickable buttons. Each label starts with its option ID
+  (`W1 · delete orphaned rows`), the recommended one first and marked
+  `(Recommended)`, with the cost in the description. Write no table for it
+  in the reply.
+- If the reader dismisses the buttons, end the reply with the same question
+  as a `> [!IMPORTANT]` callout: a bold `❓` question line, an
+  `| ID | Option | Cost |` table (ID bold, ⭐ after the recommended one's ID),
+  then the `say **W1** or **W2**` line. Use the callout from the start for a
+  question asked in reply to a background event, which must not block.
 - A decision table too wide for the reply (4+ options or long cells) can be a
   card instead. Pipe JSON with `kind` (`choice` or `question`), `title` and
   `options` (each `id`, `option`, `cost`, `recommended`) to
